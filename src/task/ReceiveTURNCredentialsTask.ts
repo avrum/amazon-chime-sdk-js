@@ -3,6 +3,7 @@
 
 import AudioVideoControllerState from '../audiovideocontroller/AudioVideoControllerState';
 import ContentShareConstants from '../contentsharecontroller/ContentShareConstants';
+import MeetingSessionStatusCode from '../meetingsession/MeetingSessionStatusCode';
 import MeetingSessionTURNCredentials from '../meetingsession/MeetingSessionTURNCredentials';
 import Versioning from '../versioning/Versioning';
 import BaseTask from './BaseTask';
@@ -31,6 +32,11 @@ export default class ReceiveTURNCredentialsTask extends BaseTask {
   }
 
   async run(): Promise<void> {
+    if (!this.url) {
+      this.context.logger.info('skipping TURN credentials');
+      return;
+    }
+
     const options: RequestInit = {
       method: 'POST',
       mode: 'cors',
@@ -57,6 +63,15 @@ export default class ReceiveTURNCredentialsTask extends BaseTask {
       try {
         const responseBody = await fetch(Versioning.urlWithVersion(this.url), options);
         this.context.logger.info(`received TURN credentials`);
+        if (responseBody.status && responseBody.status === 403) {
+          reject(
+            new Error(
+              `canceling ${this.name()} due to the meeting status code: ${
+                MeetingSessionStatusCode.TURNCredentialsForbidden
+              }`
+            )
+          );
+        }
         resolve(await responseBody.json());
       } catch (error) {
         reject(error);

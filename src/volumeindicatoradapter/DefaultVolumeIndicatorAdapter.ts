@@ -34,6 +34,7 @@ export default class DefaultVolumeIndicatorAdapter implements VolumeIndicatorAda
       const hasAttendeeId = !!stream.attendeeId;
       const hasExternalUserId = !!stream.externalUserId;
       const hasMuted = stream.hasOwnProperty('muted');
+      const hasDropped = !!stream.dropped;
       if (hasAttendeeId) {
         this.streamIdToAttendeeId[stream.audioStreamId] = stream.attendeeId;
         const externalUserId = hasExternalUserId ? stream.externalUserId : stream.attendeeId;
@@ -41,7 +42,8 @@ export default class DefaultVolumeIndicatorAdapter implements VolumeIndicatorAda
         this.realtimeController.realtimeSetAttendeeIdPresence(
           stream.attendeeId,
           true,
-          externalUserId
+          externalUserId,
+          false
         );
       }
       if (hasMuted) {
@@ -61,7 +63,12 @@ export default class DefaultVolumeIndicatorAdapter implements VolumeIndicatorAda
         delete this.streamIdToAttendeeId[stream.audioStreamId];
         delete this.streamIdToExternalUserId[stream.audioStreamId];
         delete this.warnedAboutMissingStreamIdMapping[stream.audioStreamId];
-        this.realtimeController.realtimeSetAttendeeIdPresence(attendeeId, false, externalUserId);
+        this.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeId,
+          false,
+          externalUserId,
+          hasDropped
+        );
       }
     }
   }

@@ -17,7 +17,12 @@ export default class CreatePeerConnectionTask extends BaseTask implements Remova
   private removeTrackAddedEventListener: (() => void) | null = null;
   private removeTrackRemovedEventListeners: { [trackId: string]: () => void } = {};
   private presenceHandlerSet = new Set<
-    (attendeeId: string, present: boolean, externalUserId?: string | null) => void
+    (
+      attendeeId: string,
+      present: boolean,
+      externalUserId: string | null,
+      dropped: boolean | null
+    ) => void
   >();
 
   private readonly trackEvents: string[] = [
@@ -77,17 +82,19 @@ export default class CreatePeerConnectionTask extends BaseTask implements Remova
   async run(): Promise<void> {
     this.context.removableObservers.push(this);
 
-    const configuration: RTCConfiguration = {
-      iceServers: [
-        {
-          urls: this.context.turnCredentials.uris,
-          username: this.context.turnCredentials.username,
-          credential: this.context.turnCredentials.password,
-          credentialType: 'password',
-        },
-      ],
-      iceTransportPolicy: 'relay',
-    };
+    const configuration: RTCConfiguration = this.context.turnCredentials
+      ? {
+          iceServers: [
+            {
+              urls: this.context.turnCredentials.uris,
+              username: this.context.turnCredentials.username,
+              credential: this.context.turnCredentials.password,
+              credentialType: 'password',
+            },
+          ],
+          iceTransportPolicy: 'relay',
+        }
+      : {};
     configuration.bundlePolicy = this.context.browserBehavior.requiresBundlePolicy();
     // @ts-ignore
     configuration.sdpSemantics = this.context.browserBehavior.requiresUnifiedPlan()
@@ -119,6 +126,10 @@ export default class CreatePeerConnectionTask extends BaseTask implements Remova
       `received track event: kind=${track.kind} id=${track.id} label=${track.label}`
     );
 
+    if (event.transceiver && event.transceiver.currentDirection === 'inactive') {
+      return;
+    }
+
     const stream: MediaStream = event.streams[0];
     if (track.kind === 'audio') {
       this.context.audioMixController.bindAudioStream(stream);
@@ -129,10 +140,14 @@ export default class CreatePeerConnectionTask extends BaseTask implements Remova
 
   private trackIsVideoInput(track: MediaStreamTrack): boolean {
     if (this.context.transceiverController.useTransceivers()) {
-      this.logger.info(`getting video track type (unified-plan)`);
+      this.logger.debug(() => {
+        return `getting video track type (unified-plan)`;
+      });
       return this.context.transceiverController.trackIsVideoInput(track);
     }
-    this.logger.info(`getting video track type (plan-b)`);
+    this.logger.debug(() => {
+      return `getting video track type (plan-b)`;
+    });
     if (this.context.activeVideoInput) {
       const tracks = this.context.activeVideoInput.getVideoTracks();
       if (tracks && tracks.length > 0 && tracks[0].id === track.id) {
@@ -151,8 +166,13 @@ export default class CreatePeerConnectionTask extends BaseTask implements Remova
     streamId: number
   ): void {
     const timeoutScheduler = new TimeoutScheduler(this.externalUserIdTimeoutMs);
-    const handler = (presentAttendeeId: string, present: boolean, externalUserId: string): void => {
-      if (attendeeId === presentAttendeeId && present && externalUserId !== null) {
+    const handler = (
+      presentAttendeeId: string,
+      present: boolean,
+      externalUserId: string,
+      dropped: boolean
+    ): void => {
+      if (attendeeId === presentAttendeeId && present && externalUserId !== null && !dropped) {
         tile.bindVideoStream(attendeeId, false, stream, width, height, streamId, externalUserId);
         this.context.realtimeController.realtimeUnsubscribeToAttendeeIdPresence(handler);
         this.presenceHandlerSet.delete(handler);
@@ -170,20 +190,12 @@ export default class CreatePeerConnectionTask extends BaseTask implements Remova
   private addRemoteVideoTrack(track: MediaStreamTrack, stream: MediaStream): void {
     let trackId = stream.id;
     if (!this.context.browserBehavior.requiresUnifiedPlan()) {
-      this.logger.info('redefining MediaStream as track array (plan-b)');
       stream = new MediaStream([track]);
       trackId = track.id;
     }
     const attendeeId = this.context.videoStreamIndex.attendeeIdForTrack(trackId);
-
-    // TODO: in case a previous tile with the same attendee id hasn't been cleaned up
-    // we do it here to avoid showing a duplicate tile. We should try to understand
-    // why this can happen, so adding a log statement to track this and learn more.
-    const tilesRemoved = this.context.videoTileController.removeVideoTilesByAttendeeId(attendeeId);
-    if (tilesRemoved.length > 0) {
-      this.logger.warn(
-        `removing existing tiles ${tilesRemoved} with same attendee id ${attendeeId}`
-      );
+    if (this.context.videoTileController.haveVideoTileForAttendeeId(attendeeId)) {
+      return;
     }
 
     const tile = this.context.videoTileController.addVideoTile();
@@ -217,12 +229,12 @@ export default class CreatePeerConnectionTask extends BaseTask implements Remova
 
     let width: number;
     let height: number;
-    if (track.getCapabilities) {
-      const cap: MediaTrackCapabilities = track.getCapabilities();
+    if (track.getSettings) {
+      const cap: MediaTrackSettings = track.getSettings();
       width = cap.width as number;
       height = cap.height as number;
     } else {
-      const cap: MediaTrackSettings = track.getSettings();
+      const cap: MediaTrackCapabilities = track.getCapabilities();
       width = cap.width as number;
       height = cap.height as number;
     }
@@ -241,7 +253,9 @@ export default class CreatePeerConnectionTask extends BaseTask implements Remova
     let endEvent = 'removetrack';
     let target: MediaStream = stream;
     if (!this.context.browserBehavior.requiresUnifiedPlan()) {
-      this.logger.info('updating end event and target track (plan-b)');
+      this.logger.debug(() => {
+        return 'updating end event and target track (plan-b)';
+      });
       endEvent = 'ended';
       // @ts-ignore
       target = track;

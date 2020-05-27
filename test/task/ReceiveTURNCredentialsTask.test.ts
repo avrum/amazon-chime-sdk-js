@@ -1,4 +1,4 @@
-// Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright 2019-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import * as chai from 'chai';
@@ -7,6 +7,7 @@ import AudioVideoControllerState from '../../src/audiovideocontroller/AudioVideo
 import NoOpAudioVideoController from '../../src/audiovideocontroller/NoOpAudioVideoController';
 import MeetingSessionConfiguration from '../../src/meetingsession/MeetingSessionConfiguration';
 import MeetingSessionCredentials from '../../src/meetingsession/MeetingSessionCredentials';
+import MeetingSessionStatusCode from '../../src/meetingsession/MeetingSessionStatusCode';
 import MeetingSessionTURNCredentials from '../../src/meetingsession/MeetingSessionTURNCredentials';
 import MeetingSessionURLs from '../../src/meetingsession/MeetingSessionURLs';
 import TimeoutScheduler from '../../src/scheduler/TimeoutScheduler';
@@ -67,6 +68,27 @@ describe('ReceiveTURNCredentialsTask', () => {
           expect(context.turnCredentials).to.equal(null);
           done();
         });
+    });
+
+    it('handles a 403 error to fetch TURN Credentials', async () => {
+      domMockBehavior.fetchSucceeds = true;
+      domMockBehavior.responseStatusCode = 403;
+      domMockBehavior.responseSuccess = false;
+      try {
+        await task.run();
+        throw new Error('This line should not be reached.');
+      } catch (error) {
+        expect(error.message).includes(
+          `the meeting status code: ${MeetingSessionStatusCode.TURNCredentialsForbidden}`
+        );
+      }
+    });
+
+    it('will bypass the task when a url is not specified', async () => {
+      context.meetingSessionConfiguration.urls.turnControlURL = null;
+      task = new ReceiveTURNCredentialsTask(context);
+      await task.run();
+      expect(context.turnCredentials).to.equal(null);
     });
   });
 

@@ -1,6 +1,7 @@
 // Copyright 2019-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import DataMessage from '../datamessage/DataMessage';
 import RealtimeVolumeIndicator from './RealtimeVolumeIndicator';
 
 /**
@@ -23,7 +24,8 @@ export default class RealtimeState {
   attendeeIdChangesCallbacks: ((
     attendeeId: string,
     present: boolean,
-    externalUserId?: string
+    externalUserId: string,
+    dropped: boolean
   ) => void)[] = [];
 
   /**
@@ -83,4 +85,18 @@ export default class RealtimeState {
    * Callbacks to listen for fatal errors
    */
   fatalErrorCallbacks: ((error: Error) => void)[] = [];
+
+  /**
+   * Callbacks to trigger when sending message
+   */
+  sendDataMessageCallbacks: ((
+    topic: string, // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: Uint8Array | string | any,
+    lifetimeMs?: number
+  ) => void)[] = [];
+
+  /**
+   * Callbacks to listen for receiving message from data channel based on given topic
+   */
+  receiveDataMessageCallbacks: Map<string, ((dataMessage: DataMessage) => void)[]> = new Map();
 }

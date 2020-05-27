@@ -11,6 +11,7 @@ import {
   ClientMetricReport,
   ConsoleLogger,
   ContentShareObserver,
+  DataMessage,
   DefaultActiveSpeakerPolicy,
   DefaultAudioMixController,
   DefaultDeviceController,
@@ -109,6 +110,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
   static testVideo: string = 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.360p.vp9.webm';
   static readonly LOGGER_BATCH_SIZE: number = 85;
   static readonly LOGGER_INTERVAL_MS: number = 1150;
+  static readonly DATA_MESSAGE_TOPIC: string = "chat";
+  static readonly DATA_MESSAGE_LIFETIME_MS: number = 300000;
 
   showActiveSpeakerScores = false;
   activeSpeakerLayout = true;
@@ -143,6 +146,10 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
   enableWebAudio = false;
   enableUnifiedPlanForChromiumBasedBrowsers = true;
 
+  markdown = require('markdown-it')({linkify: true});
+  lastMessageSender: string | null = null;
+  lastReceivedMessageTimestamp = 0;
+
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (global as any).app = this;
@@ -150,7 +157,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       "amazon-chime-sdk-js@" + Versioning.sdkVersion;
     this.initEventListeners();
     this.initParameters();
-    this.getNearestMediaRegion();
+    this.setMediaRegion();
     if (this.isRecorder()) {
       new AsyncScheduler().start(async () => {
         this.meeting = new URL(window.location.href).searchParams.get('m');
@@ -419,6 +426,39 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       });
     });
 
+    const sendMessage = () => {
+      new AsyncScheduler().start(() => {
+        const textArea = document.getElementById('send-message') as HTMLTextAreaElement;
+        const textToSend = textArea.value.trim();
+        if (!textToSend) {
+          return;
+        }
+        textArea.value = '';
+        this.audioVideo.realtimeSendDataMessage(DemoMeetingApp.DATA_MESSAGE_TOPIC, textToSend, DemoMeetingApp.DATA_MESSAGE_LIFETIME_MS);
+        // echo the message to the handler
+        this.dataMessageHandler(new DataMessage(
+          Date.now(),
+          DemoMeetingApp.DATA_MESSAGE_TOPIC,
+          new TextEncoder().encode(textToSend),
+          this.meetingSession.configuration.credentials.attendeeId,
+          this.meetingSession.configuration.credentials.externalUserId
+        ));
+      });
+    };
+
+    const textAreaSendMessage = document.getElementById('send-message') as HTMLTextAreaElement;
+    textAreaSendMessage.addEventListener('keydown', e => {
+      if (e.keyCode === 13) {
+        if (e.shiftKey) {
+          textAreaSendMessage.rows++;
+        } else {
+          e.preventDefault();
+          sendMessage();
+          textAreaSendMessage.rows = 1;
+        }
+      }
+    });
+
     const buttonMeetingEnd = document.getElementById('button-meeting-end');
     buttonMeetingEnd.addEventListener('click', _e => {
       const confirmEnd = (new URL(window.location.href).searchParams.get('confirm-end')) === 'true';
@@ -448,24 +488,45 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     });
   }
 
-  getNearestMediaRegion(): void {
-    const supportedMediaRegions: Array<string> = ['ap-northeast-1', 'ap-southeast-1', 'ap-southeast-2', 'ca-central-1', 'eu-central-1', 'eu-north-1', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'sa-east-1', 'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2'];
+  getSupportedMediaRegions(): Array<string> {
+    const supportedMediaRegions: Array<string> = [];
+    const mediaRegion = (document.getElementById("inputRegion")) as HTMLSelectElement;
+    for (var i = 0; i < mediaRegion.length; i++) {
+      supportedMediaRegions.push(mediaRegion.value);
+    }
+    return supportedMediaRegions;
+  }
+
+  async getNearestMediaRegion(): Promise<string> {
+     const nearestMediaRegionResponse = await fetch(
+      `https://nearest-media-region.l.chime.aws`,
+      {
+        method: 'GET',
+      }
+    );
+    const nearestMediaRegionJSON = await nearestMediaRegionResponse.json();
+    const nearestMediaRegion = nearestMediaRegionJSON.region;
+    return nearestMediaRegion;
+  }
+
+  setMediaRegion(): void {
     new AsyncScheduler().start(
       async (): Promise<void> => {
         try {
-          const nearestMediaRegionResponse = await fetch(
-            `https://nearest-media-region.l.chime.aws`,
-            {
-              method: 'GET',
-            }
-          );
-          const nearestMediaRegionJSON = await nearestMediaRegionResponse.json();
-          const nearestMediaRegion = nearestMediaRegionJSON.region;
-          if (supportedMediaRegions.indexOf(nearestMediaRegion) !== -1) {
-            (document.getElementById('inputRegion') as HTMLInputElement).value = nearestMediaRegion;
-          } else {
-            throw new Error(`${nearestMediaRegion} doesn't exist`);
+          const nearestMediaRegion = await this.getNearestMediaRegion();
+          if (nearestMediaRegion === '' || nearestMediaRegion === null) {
+            throw new Error('Nearest Media Region cannot be null or empty');
           }
+          const supportedMediaRegions: Array<string> = this.getSupportedMediaRegions();
+          if (supportedMediaRegions.indexOf(nearestMediaRegion) === -1 ) {
+            supportedMediaRegions.push(nearestMediaRegion);
+            const mediaRegionElement = (document.getElementById("inputRegion")) as HTMLSelectElement;
+            const newMediaRegionOption = document.createElement("option");
+            newMediaRegionOption.value = nearestMediaRegion;
+            newMediaRegionOption.text = nearestMediaRegion + " (" + nearestMediaRegion + ")";
+            mediaRegionElement.add(newMediaRegionOption, null);
+          }
+          (document.getElementById('inputRegion') as HTMLInputElement).value = nearestMediaRegion;
         } catch (error) {
           this.log('Default media region selected: ' + error.message);
         }
@@ -596,6 +657,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     this.setupMuteHandler();
     this.setupCanUnmuteHandler();
     this.setupSubscribeToAttendeeIdPresenceHandler();
+    this.setupDataMessage();
     this.audioVideo.addObserver(this);
     this.audioVideo.addContentShareObserver(this);
     this.initContentShareDropDownItems();
@@ -685,13 +747,14 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
   }
 
   setupSubscribeToAttendeeIdPresenceHandler(): void {
-    const handler = (attendeeId: string, present: boolean, externalUserId: string): void => {
-      this.log(`${attendeeId} present = ${present}`);
+    const handler = (attendeeId: string, present: boolean, externalUserId: string, dropped: boolean): void => {
+      this.log(`${attendeeId} present = ${present} (${externalUserId})`);
       const isContentAttendee = new DefaultModality(attendeeId).hasModality(DefaultModality.MODALITY_CONTENT);
       const isSelfAttendee = new DefaultModality(attendeeId).base() === this.meetingSession.configuration.credentials.attendeeId;
       if (!present) {
         delete this.roster[attendeeId];
         this.updateRoster();
+        this.log(`${attendeeId} dropped = ${dropped} (${externalUserId})`);
         return;
       }
       //If someone else share content, stop the current content share
@@ -700,7 +763,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       }
       if (!this.roster[attendeeId]) {
         this.roster[attendeeId] = {
-          name: externalUserId.split('#')[1] + (isContentAttendee ? ' «Content»' : ''),
+          name: (externalUserId.split('#').slice(-1)[0]) + (isContentAttendee ? ' «Content»' : ''),
         };
       }
       this.audioVideo.realtimeSubscribeToVolumeIndicator(
@@ -755,6 +818,45 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     );
   }
 
+  dataMessageHandler(dataMessage: DataMessage): void {
+    if (!dataMessage.throttled) {
+      const isSelf = dataMessage.senderAttendeeId === this.meetingSession.configuration.credentials.attendeeId;
+      if (dataMessage.timestampMs <= this.lastReceivedMessageTimestamp) {
+        return;
+      }
+      this.lastReceivedMessageTimestamp = dataMessage.timestampMs;
+      const messageDiv = document.getElementById('receive-message') as HTMLDivElement;
+      const messageNameSpan = document.createElement('div') as HTMLDivElement;
+      messageNameSpan.classList.add('message-bubble-sender');
+      messageNameSpan.innerText = (dataMessage.senderExternalUserId.split('#').slice(-1)[0]);
+      const messageTextSpan = document.createElement('div') as HTMLDivElement;
+      messageTextSpan.classList.add(isSelf ? 'message-bubble-self' : 'message-bubble-other');
+      messageTextSpan.innerHTML = this.markdown.render(dataMessage.text()).replace(/[<]a /g, '<a target="_blank" ');
+      const appendClass = (element: HTMLElement, className: string) => {
+        for (let i = 0; i < element.children.length; i++) {
+          const child = element.children[i] as HTMLElement;
+          child.classList.add(className);
+          appendClass(child, className);
+        }
+      }
+      appendClass(messageTextSpan, 'markdown');
+      if (this.lastMessageSender !== dataMessage.senderAttendeeId) {
+        messageDiv.appendChild(messageNameSpan);
+      }
+      this.lastMessageSender = dataMessage.senderAttendeeId;
+      messageDiv.appendChild(messageTextSpan);
+      messageDiv.scrollTop = messageDiv.scrollHeight;
+    } else {
+      this.log('Message is throttled. Please resend');
+    }
+  }
+
+  setupDataMessage(): void {
+    this.audioVideo.realtimeSubscribeToReceiveDataMessage(DemoMeetingApp.DATA_MESSAGE_TOPIC, (dataMessage: DataMessage) => {
+      this.dataMessageHandler(dataMessage);
+    });
+  }
+
   // eslint-disable-next-line
   async joinMeeting(): Promise<any> {
     const response = await fetch(
@@ -775,6 +877,16 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     await fetch(`${DemoMeetingApp.BASE_URL}end?title=${encodeURIComponent(this.meeting)}`, {
       method: 'POST',
     });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getAttendee(attendeeId: string): Promise<any> {
+    const response = await fetch(`${DemoMeetingApp.BASE_URL}attendee?title=${encodeURIComponent(this.meeting)}&attendee=${encodeURIComponent(attendeeId)}`);
+    const json = await response.json();
+    if (json.error) {
+      throw new Error(`Server error: ${json.error}`);
+    }
+    return json;
   }
 
   setupDeviceLabelTrigger(): void {
@@ -1466,6 +1578,10 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   connectionDidSuggestStopVideo(): void {
     this.log('suggest turning the video off');
+  }
+
+  connectionDidBecomeGood(): void {
+    this.log('connection is good now');
   }
 
   videoSendDidBecomeUnavailable(): void {

@@ -4,16 +4,53 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-## [Unreleased]
+
+## [1.7.0] - 2020-05-23
 
 ### Added
+- Add connectionDidBecomeGood callback in AudioVideoObserver
+- Add an integration test for Data Message
+- Add the device selection to the "Starting a session" example
+- Added Bandwidth and connectivity guide
+- Add 'dropped' boolean attribute to realtime interface to indicate attendee drop
 
 ### Changed
-- Allow audio for screen capture in Chrome and Edge browsers
+- Styling and Markdown support for meeting demo chat
+- Update signaling protocol
+
 ### Removed
 
 ### Fixed
+- Fix Firefox version 76 missing/grey tiles
+- Fix data message integration tests
+- Fix several integration test name
+- Mark 403 (Forbidden) for fetching turn credentials as terminal error and avoid retrying.
+- Fix Android Pixel3 Chrome Video artifacts on far sites
+- Don't throw the "cannot replace" message if the device controller is not bound to any audio-video controller
 
+## [1.6.2] - 2020-05-18
+
+### Fixed
+- Disable audio capture for Electron Screen Capture
+
+## [1.6.0] - 2020-05-15
+
+### Added
+- Allow option to skip device selection page in demo app.
+- Add demo hook for debugging media connections
+- Add github link to getNearestMediaRegion method in README.md
+- Add data message APIs
+
+### Changed
+- Allow audio for screen capture in Chrome and Edge browsers
+- Decouple the get call request from the UI
+- Use getSettings if possible on MediaStream and move some info logs to debug level
+- Use innerText instead of innerHTML
+
+### Removed
+
+### Fixed
+- Fix minor coding styles for data message APIs
 
 ## [1.5.0] - 2020-05-07
 

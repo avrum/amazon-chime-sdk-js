@@ -34,6 +34,7 @@ And review the following guides:
 * [Getting Started](https://aws.github.io/amazon-chime-sdk-js/modules/gettingstarted.html)
 * [API Overview](https://aws.github.io/amazon-chime-sdk-js/modules/apioverview.html)
 * [Content Share](https://aws.github.io/amazon-chime-sdk-js/modules/contentshare.html)
+* [Quality, Bandwidth, and Connectivity](https://aws.github.io/amazon-chime-sdk-js/modules/qualitybandwidth_connectivity.html)
 
 ## Examples
 
@@ -113,6 +114,9 @@ const attendeeResponse = await chime.createAttendee({
 
 Now securely transfer the `meetingResponse` and `attendeeResponse` objects to your client application.
 These objects contain all the information needed for a client application using the Amazon Chime SDK for JavaScript to join the meeting.
+
+The value of the MediaRegion parameter in the createMeeting() should ideally be set to the one of the media regions which is closest to the user creating a meeting. 
+An implementation can be found in the [getNearestMediaRegion()](https://github.com/aws/amazon-chime-sdk-js/blob/master/demos/browser/app/meetingV2/meetingV2.ts#L460)
 
 ## Building and testing
 

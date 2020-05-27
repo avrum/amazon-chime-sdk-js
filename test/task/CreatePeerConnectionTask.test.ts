@@ -114,6 +114,16 @@ describe('CreatePeerConnectionTask', () => {
       });
     });
 
+    it('can create a peer connection without TURN credentials', done => {
+      context.turnCredentials = null;
+      task = new CreatePeerConnectionTask(context);
+      task.run().then(() => {
+        const configuration = context.peer.getConfiguration();
+        expect(configuration.bundlePolicy).to.equal(context.browserBehavior.requiresBundlePolicy());
+        done();
+      });
+    });
+
     it('reuses peer connection if it already exists', done => {
       const peer = new RTCPeerConnection();
       context.peer = peer;
@@ -234,7 +244,27 @@ describe('CreatePeerConnectionTask', () => {
         expect(addVideoTileSpy.called).to.be.true;
       });
 
-      it('removes a previous tile with the same attendee ID', async () => {
+      it('ignore a m-line which is inactive', async () => {
+        const addVideoTileSpy: sinon.SinonSpy = sinon.spy(
+          context.videoTileController,
+          'addVideoTile'
+        );
+
+        domMockBehavior.hasInactiveTransceiver = true;
+        await task.run();
+        await context.peer.setRemoteDescription(videoRemoteDescription);
+        await new Promise(resolve =>
+          new TimeoutScheduler(domMockBehavior.asyncWaitMs + 10).start(resolve)
+        );
+        expect(addVideoTileSpy.called).to.be.false;
+      });
+
+      it('ignore track event when attendee ID already associated with tile', async () => {
+        const addVideoTileSpy: sinon.SinonSpy = sinon.spy(
+          context.videoTileController,
+          'addVideoTile'
+        );
+
         let called = false;
 
         const attendeeIdForTrack = 'attendee-id';
@@ -246,10 +276,10 @@ describe('CreatePeerConnectionTask', () => {
         context.videoStreamIndex = new TestVideoStreamIndex(logger);
 
         class TestVideoTileController extends DefaultVideoTileController {
-          removeVideoTilesByAttendeeId(attendeeId: string): number[] {
+          haveVideoTileForAttendeeId(attendeeId: string): boolean {
             expect(attendeeId).to.equal(attendeeIdForTrack);
             called = true;
-            return [1, 2, 3];
+            return true;
           }
         }
         context.videoTileController = new TestVideoTileController(
@@ -264,13 +294,19 @@ describe('CreatePeerConnectionTask', () => {
           new TimeoutScheduler(domMockBehavior.asyncWaitMs + 10).start(resolve)
         );
         expect(called).to.be.true;
+        expect(addVideoTileSpy.called).to.be.false;
       });
 
       it('can have a stream ID', async () => {
         const streamId = 1;
         let tile: VideoTile;
         const attendeeIdForTrack = 'attendee-id';
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, true, 'foo');
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          true,
+          'foo',
+          false
+        );
         class TestVideoStreamIndex extends DefaultVideoStreamIndex {
           streamIdForTrack(_trackId: string): number {
             return streamId;
@@ -300,15 +336,23 @@ describe('CreatePeerConnectionTask', () => {
         expect(tile.state().streamId).to.equal(streamId);
       });
 
-      it('uses getCapabilities if available in the track', async () => {
+      it('uses getCapabilities if getSettings is not available in the track', async () => {
         domMockBehavior.mediaStreamTrackCapabilities = {
           width: 640,
           height: 480,
         };
 
+        // eslint-disable-next-line
+        delete MediaStreamTrack.prototype['getSettings'];
+
         let tile: VideoTile;
         const attendeeIdForTrack = 'attendee-id';
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, true, 'foo');
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          true,
+          'foo',
+          false
+        );
         class TestVideoStreamIndex extends DefaultVideoStreamIndex {
           attendeeIdForTrack(_trackId: string): string {
             return attendeeIdForTrack;
@@ -339,7 +383,7 @@ describe('CreatePeerConnectionTask', () => {
         );
       });
 
-      it('uses getSettings if getCapabilities is not available in the track', async () => {
+      it('uses getSettings if available', async () => {
         domMockBehavior.mediaStreamTrackCapabilities = {
           width: 400,
           height: 300,
@@ -352,11 +396,13 @@ describe('CreatePeerConnectionTask', () => {
 
         let tile: VideoTile;
 
-        // eslint-disable-next-line
-        delete MediaStreamTrack.prototype['getCapabilities'];
-
         const attendeeIdForTrack = 'attendee-id';
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, true, 'foo');
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          true,
+          'foo',
+          false
+        );
         class TestVideoStreamIndex extends DefaultVideoStreamIndex {
           attendeeIdForTrack(_trackId: string): string {
             return attendeeIdForTrack;
@@ -417,7 +463,12 @@ describe('CreatePeerConnectionTask', () => {
           'realtimeSubscribeToAttendeeIdPresence'
         );
         context.realtimeController = new DefaultRealtimeController();
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, true, 'foo');
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          true,
+          'foo',
+          false
+        );
         class TestVideoStreamIndex extends DefaultVideoStreamIndex {
           attendeeIdForTrack(_trackId: string): string {
             return attendeeIdForTrack;
@@ -435,7 +486,12 @@ describe('CreatePeerConnectionTask', () => {
           new TimeoutScheduler(domMockBehavior.asyncWaitMs + 10).start(resolve)
         );
         expect(spyRealtimeSubscribeToAttendeeIdPresence.called).to.be.false;
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, false, 'foo');
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          false,
+          'foo',
+          false
+        );
         expect(spyRealtimeSubscribeToAttendeeIdPresence.called).to.be.false;
         context.removableObservers[0].removeObserver();
       });
@@ -446,7 +502,12 @@ describe('CreatePeerConnectionTask', () => {
         task = new CreatePeerConnectionTask(context, externalUserIdTimeOutMs);
 
         context.realtimeController = new DefaultRealtimeController();
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, true, null);
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          true,
+          null,
+          false
+        );
 
         const spyRealtimeSubscribeToAttendeeIdPresence = sinon.spy(
           context.realtimeController,
@@ -482,7 +543,12 @@ describe('CreatePeerConnectionTask', () => {
         task = new CreatePeerConnectionTask(context, externalUserIdTimeOutMs);
         const attendeeIdForTrack = 'attendee-id';
         context.realtimeController = new DefaultRealtimeController();
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, true, null);
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          true,
+          null,
+          false
+        );
         const spyRealtimeSubscribeToAttendeeIdPresence = sinon.spy(
           context.realtimeController,
           'realtimeSubscribeToAttendeeIdPresence'
@@ -507,9 +573,14 @@ describe('CreatePeerConnectionTask', () => {
           new TimeoutScheduler(domMockBehavior.asyncWaitMs + 10).start(resolve)
         );
         expect(spyRealtimeSubscribeToAttendeeIdPresence.called).to.be.true;
-        context.realtimeController.realtimeSetAttendeeIdPresence('new-attendee', true, null);
+        context.realtimeController.realtimeSetAttendeeIdPresence('new-attendee', true, null, false);
         expect(spyRealtimeUnsubscribeToAttendeeIdPresence.called).to.be.false;
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, true, 'foo');
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          true,
+          'foo',
+          false
+        );
         expect(spyRealtimeUnsubscribeToAttendeeIdPresence.called).to.be.true;
 
         context.removableObservers[0].removeObserver();
@@ -551,7 +622,12 @@ describe('CreatePeerConnectionTask', () => {
       it('removes stream ID from the paused video stream ID set if stream ID exists', done => {
         let called = false;
         const attendeeIdForTrack = 'attendee-id';
-        context.realtimeController.realtimeSetAttendeeIdPresence(attendeeIdForTrack, true, 'foo');
+        context.realtimeController.realtimeSetAttendeeIdPresence(
+          attendeeIdForTrack,
+          true,
+          'foo',
+          false
+        );
         class TestVideoStreamIndex extends DefaultVideoStreamIndex {
           streamIdForTrack(_trackId: string): number {
             return 1;

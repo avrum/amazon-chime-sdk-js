@@ -198,7 +198,9 @@ export default class MonitorTask extends BaseTask
       }
     }
     if (fireCallback) {
-      this.logger.info('Downlink video streams are not receiving enough data');
+      this.logger.debug(() => {
+        return `Downlink video streams are not receiving enough data`;
+      });
       this.context.audioVideoController.forEachObserver((observer: AudioVideoObserver) => {
         Maybe.of(observer.videoNotReceivingEnoughData).map(f =>
           f.bind(observer)(Array.from(videoReceivingBitrateMap.values()))
@@ -239,6 +241,10 @@ export default class MonitorTask extends BaseTask
             Maybe.of(observer.connectionDidBecomePoor).map(f => f.bind(observer)());
           });
         }
+      } else {
+        this.context.audioVideoController.forEachObserver((observer: AudioVideoObserver) => {
+          Maybe.of(observer.connectionDidBecomeGood).map(f => f.bind(observer)());
+        });
       }
     }
   }
@@ -265,9 +271,9 @@ export default class MonitorTask extends BaseTask
           MonitorTask.DEFAULT_DOWNLINK_CALLRATE_OVERSHOOT_FACTOR <
         requiredBandwidthKbps
       ) {
-        this.logger.info(
-          `Downlink bandwidth pressure is high: estimated bandwidth ${this.currentVideoDownlinkBandwidthEstimationKbps}Kbps, required bandwidth ${requiredBandwidthKbps}Kbps`
-        );
+        this.logger.debug(() => {
+          return `Downlink bandwidth pressure is high: estimated bandwidth ${this.currentVideoDownlinkBandwidthEstimationKbps}Kbps, required bandwidth ${requiredBandwidthKbps}Kbps`;
+        });
         this.context.audioVideoController.forEachObserver((observer: AudioVideoObserver) => {
           Maybe.of(observer.estimatedDownlinkBandwidthLessThanRequired).map(f =>
             f.bind(observer)(
