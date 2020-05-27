@@ -150,6 +150,11 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
   lastMessageSender: string | null = null;
   lastReceivedMessageTimestamp = 0;
 
+  private recordedBlobs: Blob[];
+  private streamsDictionary:  Map<string, object>= new Map<string, object>();
+  private mediaRecorder: MediaRecorder;
+  private recordedTile: number;
+
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (global as any).app = this;
@@ -1288,8 +1293,132 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     }
   }
 
+  // @ts-ignore
+  handleDataAvailable(event) {
+    if (event.data && event.data.size > 0) {
+      console.log('new handleDataAvailable event.data.size: ', event.data.size);
+      console.log('event.target.stream.id: ', event.target.stream.id);
+      console.log('event.currentTarget.stream.id: ', event.currentTarget.stream.id);
+
+      // @ts-ignore
+      var userStreamRecordSetting = this.streamsDictionary[event.target.stream.id];
+
+      //{userId, mediaRecorder, recordedBlobs}
+      userStreamRecordSetting.recordedBlobs.push(event.data);
+
+      /*streamsDictionary
+
+      {userId, mediaRecorder, recordedBlobs} = this.startRecording[event.currentTarget.stream.id] ;
+      */
+
+      var blobUrl = URL.createObjectURL(event.data);
+      console.log('blobUrl: ', blobUrl);
+      var link = document.createElement("a"); // Or maybe get it from the current document
+      link.href = blobUrl;
+      link.download = "aDefaultFileName.txt";
+      link.innerHTML = "Click here to download the file";
+      document.body.appendChild(link); // Or append it whereever you want
+
+      this.recordedBlobs.push(event.data);
+    }
+  }
+
+  handleStop(event: Event) {
+    console.log('Recorder stopped: ', event);
+    /*
+    const videoBuffer = new Blob(this.recordedBlobs, {type: 'video/webm'});
+    this.downloadUrl = window.URL.createObjectURL(videoBuffer); // you can download with <a> tag
+    this.recordVideoElement.src = this.downloadUrl;
+    */
+  }
+
+  // @ts-ignore
+  startRecording(userId: String, stream: MediaStream) {
+
+    /*
+    var types = ["video/webm",
+      "audio/webm",
+      "video/webm\;codecs=vp8",
+      "video/webm\;codecs=daala",
+      "video/webm\;codecs=h264",
+      "audio/webm\;codecs=opus",
+      "video/mp4",
+      "video/mpeg"];
+
+    for (var i in types) {
+      console.log( "Is " + types[i] + " supported? " + (MediaRecorder.isTypeSupported(types[i]) ? "Maybe!" : "Nope :("));
+    }
+    */
+
+    var mediaRecorder: MediaRecorder;
+    try {
+      mediaRecorder = new MediaRecorder(stream, {mimeType: 'video/webm; codecs=h264'});
+    } catch (e0) {
+      console.log('Try different mimeType');
+    }
+    console.log('Created MediaRecorder', this.mediaRecorder, 'with options', {mimeType: 'video/webm; codecs=h264'});
+    mediaRecorder.onstop = this.handleStop;
+    // @ts-ignore
+    var _thisMeeting = this;
+    mediaRecorder.ondataavailable = function(event) {
+      if (event.data && event.data.size > 0) {
+        console.log('new handleDataAvailable event.data.size: ', event.data.size);
+        // @ts-ignore
+        console.log('event.target.stream.id: ', event.target.stream.id);
+
+        // @ts-ignore
+        var userStreamRecordSetting = _thisMeeting.streamsDictionary[event.target.stream.id];
+
+        //{userId, mediaRecorder, recordedBlobs}
+        userStreamRecordSetting.recordedBlobs.push(event.data);
+
+        /*streamsDictionary
+
+        {userId, mediaRecorder, recordedBlobs} = this.startRecording[event.currentTarget.stream.id] ;
+        */
+
+        var blobUrl = URL.createObjectURL(event.data);
+        console.log('blobUrl: ', blobUrl);
+        var link = document.createElement("a"); // Or maybe get it from the current document
+        link.href = blobUrl;
+        link.download = "aDefaultFileName.txt";
+        link.innerHTML = "Click here to download the file";
+        document.body.appendChild(link); // Or append it whereever you want
+
+        this.recordedBlobs.push(event.data);
+      }
+    }
+
+    // @ts-ignore
+    var recordedBlobs = [];
+    // @ts-ignore
+    this.streamsDictionary[stream.id] = {userId, mediaRecorder, recordedBlobs};
+
+    mediaRecorder.start(5000); // collect 100ms of data
+    console.log('MediaRecorder started', this.mediaRecorder);
+
+
+  }
+
+  stopRecording() {
+    this.mediaRecorder.stop();
+    console.log('Recorded Blobs: ', this.recordedBlobs);
+    //this.recordVideoElement.controls = true;
+  }
+
+
   videoTileDidUpdate(tileState: VideoTileState): void {
     this.log(`video tile updated: ${JSON.stringify(tileState, null, '  ')}`);
+    if (tileState.active && this.recordedTile != tileState.tileId) {
+      this.recordedTile = tileState.tileId;
+      this.log(`******* STREAM IS ACTIVE *******   tileState.tileId:` + tileState.tileId);
+      this.log(`******* boundVideoStream: ${JSON.stringify(tileState.boundVideoStream, null, '  ')}`);
+      this.log(`******* boundVideoStream.active: ${JSON.stringify(tileState.boundVideoStream.active, null, '  ')}`);
+      const userName: String = tileState.boundExternalUserId.split('#')[1];
+      this.startRecording(userName, tileState.boundVideoStream)
+
+    }
+
     if (!tileState.boundAttendeeId) {
       return;
     }
