@@ -1692,11 +1692,11 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
     var mediaRecorder: MediaRecorder;
     try {
-      mediaRecorder = new MediaRecorder(stream, {mimeType: 'video/webm; codecs=h264'});
+      mediaRecorder = new MediaRecorder(stream, {mimeType: 'video/webm; codecs=vp8'});
     } catch (e0) {
-      console.log('Try different mimeType');
+      console.log('Try different mimeType', e0);
     }
-    console.log('Created MediaRecorder', this.mediaRecorder, 'with options', {mimeType: 'video/webm; codecs=h264'});
+    console.log('Created MediaRecorder', this.mediaRecorder);
     mediaRecorder.onstop = this.handleStop;
     // @ts-ignore
     const _thisMeeting = this;
@@ -1709,6 +1709,14 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
         // @ts-ignore
         const userStreamRecordSetting = _thisMeeting.streamsDictionary[event.target.stream.id];
         userStreamRecordSetting.recordedBlobs.push(event.data);
+        /*
+        // Download each part as a single file
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(event.data);
+        link.download = userStreamRecordSetting.recordedBlobs.length + '.webm';
+        link.click() // Save
+        */
+
       }
     };
 
@@ -1731,6 +1739,19 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
   private startDownloadAllStreams() {
     console.log('Starting to download all streams');
 
+    var types = ["video/webm",
+      "audio/webm",
+      "video/webm\;codecs=vp8",
+      "video/webm\;codecs=daala",
+      "video/webm\;codecs=h264",
+      "audio/webm\;codecs=opus",
+      "video/mp4",
+      "video/mpeg"];
+
+    for (var i in types) {
+      console.log( "Is " + types[i] + " supported? " + (MediaRecorder.isTypeSupported(types[i]) ? "Maybe!" : "Nope :("));
+    }
+
     for (const [key, value] of Object.entries(this.streamsDictionary)) {
       console.log(key, value);
       console.log('Starting download steam id:' + key);
@@ -1740,8 +1761,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       let blob = new Blob(recordedBlobs);
 
       const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob) // DOES NOT WORK
-      link.download = userId + '.webm'
+      link.href = URL.createObjectURL(blob);
+      link.download = userId + '.webm';
       link.click() // Save
 
     }

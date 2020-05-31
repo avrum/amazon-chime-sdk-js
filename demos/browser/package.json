@@ -32,11 +32,12 @@
   },
   "dependencies": {
     "amazon-chime-sdk-js": "file:../..",
-    "aws-sdk": "^2.684.0",
+    "aws-sdk": "^2.685.0",
     "bootstrap": "^4.3.1",
     "compression": "^1.7.4",
     "jquery": "^3.4.1",
-    "popper.js": "^1.15.0"
+    "popper.js": "^1.15.0",
+    "recordrtc": "^5.6.1"
   },
   "license": "Apache-2.0",
   "repository": {
