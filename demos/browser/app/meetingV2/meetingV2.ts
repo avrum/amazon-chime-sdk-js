@@ -1640,15 +1640,11 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       console.log('event.currentTarget.stream.id: ', event.currentTarget.stream.id);
 
       // @ts-ignore
-      var userStreamRecordSetting = this.streamsDictionary[event.target.stream.id];
+      var userStreamRecordSetting = this.streamsDictionary.get(event.target.stream.id);
 
       //{userId, mediaRecorder, recordedBlobs}
+      // @ts-ignore
       userStreamRecordSetting.recordedBlobs.push(event.data);
-
-      /*streamsDictionary
-
-      {userId, mediaRecorder, recordedBlobs} = this.startRecording[event.currentTarget.stream.id] ;
-      */
 
       var blobUrl = URL.createObjectURL(event.data);
       console.log('blobUrl: ', blobUrl);
@@ -1689,6 +1685,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     }
     */
 
+    console.log('Checking if stream dictionary have stream.id : ' + stream.id);
     if (this.streamsDictionary.has(stream.id)) {
       console.log('a stream recorder for: ' + stream.id + ' already exist. ignoring this active stream.');
       return;
@@ -1710,8 +1707,9 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
         console.log('new handleDataAvailable event.data.size: ', event.data.size , '  stream.id: ', event.target.stream.id);
 
         // @ts-ignore
-        const userStreamRecordSetting = _thisMeeting.streamsDictionary[event.target.stream.id];
-        userStreamRecordSetting.recordedBlobs.push(event.data);
+        const userStreamRecordSetting = _thisMeeting.streamsDictionary.get(event.target.stream.id);
+        // @ts-ignore
+          userStreamRecordSetting.recordedBlobs.push(event.data);
         /*
         // Download each part as a single file
         const link = document.createElement('a');
@@ -1726,7 +1724,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     // @ts-ignore
     const recordedBlobs = [];
     // @ts-ignore
-    this.streamsDictionary[stream.id] = {userId, mediaRecorder, recordedBlobs};
+    this.streamsDictionary.set(stream.id , {userId, mediaRecorder, recordedBlobs});
 
     mediaRecorder.start(100); // collect 1000ms of data
     console.log('MediaRecorder started for stream id: ', stream.id);
