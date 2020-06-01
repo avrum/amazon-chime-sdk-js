@@ -1302,13 +1302,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   videoTileDidUpdate(tileState: VideoTileState): void {
     this.log(`video tile updated: ${JSON.stringify(tileState, null, '  ')}`);
-    if (tileState.active) {
-      this.log(`******* STREAM IS ACTIVE *******   tileState.tileId:` + tileState.tileId);
-      this.log(`******* boundVideoStream: ${JSON.stringify(tileState.boundVideoStream, null, '  ')}`);
-      this.log(`******* boundVideoStream.active: ${JSON.stringify(tileState.boundVideoStream.active, null, '  ')}`);
-      const userName: String = tileState.boundExternalUserId.split('#')[1];
-      this.startRecording(userName, tileState.boundVideoStream)
-    }
 
     if (!tileState.boundAttendeeId) {
       return;
@@ -1344,6 +1337,15 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     this.updateProperty(nameplateElement, 'innerText', tileState.boundExternalUserId.split('#')[1]);
     tileElement.style.display = 'block';
     this.layoutVideoTiles();
+
+    if (tileState.active) {
+        this.log("******* STREAM IS ACTIVE *******");
+        this.log(`******* STREAM IS ACTIVE *******   tileState.tileId:` + tileState.tileId);
+        this.log(`******* boundVideoStream: ${JSON.stringify(tileState.boundVideoStream, null, '  ')}`);
+        this.log(`******* boundVideoStream.active: ${JSON.stringify(tileState.boundVideoStream.active, null, '  ')}`);
+        const userName: String = tileState.boundExternalUserId.split('#')[1];
+        this.startRecording(userName, tileState.boundVideoStream)
+    }
   }
 
   videoTileWasRemoved(tileId: number): void {
