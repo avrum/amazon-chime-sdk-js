@@ -1753,7 +1753,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       console.log( "Is " + types[i] + " supported? " + (MediaRecorder.isTypeSupported(types[i]) ? "Maybe!" : "Nope :("));
     }
 
-    for (const [key, value] of Object.entries(this.streamsDictionary)) {
+    this.streamsDictionary.forEach((value: object, key: string) => {
       console.log(key, value);
       console.log('Starting download steam id:' + key);
       // @ts-ignore
@@ -1766,7 +1766,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       link.download = userId + '.webm';
       link.click() // Save
 
-    }
+    });
   }
 }
 
