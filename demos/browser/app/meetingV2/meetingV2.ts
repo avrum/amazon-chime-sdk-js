@@ -1753,18 +1753,19 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       console.log( "Is " + types[i] + " supported? " + (MediaRecorder.isTypeSupported(types[i]) ? "Maybe!" : "Nope :("));
     }
 
-    for (const [key, value] of Object.entries(this.streamsDictionary)) {
-      console.log(key, value);
-      console.log('Starting download steam id:' + key);
-      // @ts-ignore
-      const {userId, mediaRecorder, recordedBlobs} = value;
-      console.log('Starting user id:' + userId);
-      let blob = new Blob(recordedBlobs);
+    for (let key in this.streamsDictionary) {
+        let value = this.streamsDictionary.get(key);
+        console.log('Starting download steam id:' + key);
 
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = userId + '.webm';
-      link.click() // Save
+        // @ts-ignore
+        const {userId, mediaRecorder, recordedBlobs} = value;
+        console.log('Starting user id:' + userId);
+        let blob = new Blob(recordedBlobs);
+
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = userId + '.webm';
+        link.click() // Save
 
     }
   }
