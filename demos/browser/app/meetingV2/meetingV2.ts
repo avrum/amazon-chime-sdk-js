@@ -1310,7 +1310,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       this.log(`******* boundVideoStream.active: ${JSON.stringify(tileState.boundVideoStream.active, null, '  ')}`);
       const userName: String = tileState.boundExternalUserId.split('#')[1];
       this.startRecording(userName, tileState.boundVideoStream)
-
     }
 
     if (!tileState.boundAttendeeId) {
@@ -1690,6 +1689,11 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     }
     */
 
+    if (this.streamsDictionary.has(stream.id)) {
+      console.log('a stream recorder for: ' + stream.id + ' already exist. ignoring this active stream.');
+      return;
+    }
+
     var mediaRecorder: MediaRecorder;
     try {
       mediaRecorder = new MediaRecorder(stream, {mimeType: 'video/webm; codecs=vp8'});
@@ -1702,9 +1706,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     const _thisMeeting = this;
     mediaRecorder.ondataavailable = function(event) {
       if (event.data && event.data.size > 0) {
-        console.log('new handleDataAvailable event.data.size: ', event.data.size);
         // @ts-ignore
-        console.log('event.target.stream.id: ', event.target.stream.id);
+        console.log('new handleDataAvailable event.data.size: ', event.data.size , '  stream.id: ', event.target.stream.id);
 
         // @ts-ignore
         const userStreamRecordSetting = _thisMeeting.streamsDictionary[event.target.stream.id];
@@ -1725,8 +1728,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     // @ts-ignore
     this.streamsDictionary[stream.id] = {userId, mediaRecorder, recordedBlobs};
 
-    mediaRecorder.start(1000); // collect 1000ms of data
-    console.log('MediaRecorder started', this.mediaRecorder);
+    mediaRecorder.start(100); // collect 1000ms of data
+    console.log('MediaRecorder started for stream id: ', stream.id);
   }
 
   stopRecording() {
