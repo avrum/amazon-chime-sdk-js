@@ -154,7 +154,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
   private recordedBlobs: Blob[];
   private streamsDictionary:  Map<string, object>= new Map<string, object>();
   private mediaRecorder: MediaRecorder;
-  private recordedTile: number;
 
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1303,8 +1302,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   videoTileDidUpdate(tileState: VideoTileState): void {
     this.log(`video tile updated: ${JSON.stringify(tileState, null, '  ')}`);
-    if (tileState.active && this.recordedTile != tileState.tileId) {
-      this.recordedTile = tileState.tileId;
+    if (tileState.active) {
       this.log(`******* STREAM IS ACTIVE *******   tileState.tileId:` + tileState.tileId);
       this.log(`******* boundVideoStream: ${JSON.stringify(tileState.boundVideoStream, null, '  ')}`);
       this.log(`******* boundVideoStream.active: ${JSON.stringify(tileState.boundVideoStream.active, null, '  ')}`);
