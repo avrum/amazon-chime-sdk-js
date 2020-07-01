@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2020-06-30
+
+### Added
+- Add meeting demo parameter for broadcasting user
+- Add simulcast guide link in README and Quality Bandwidth Connectivity doc
+- Add a MediaDevices proxy to support the devicechange event in some Android Chrome browsers
+
+### Changed
+
+### Removed
+- Remove browser demo optional feature HTMLSelectElement multiple attribute
+
+### Fixed
+- Fix CloudWatch metrics for Linux and Android integration tests
+- Fix create meeting request for audio and video e2e integration tests
+- Fix multiple issues with integration tests
+- Fix uuidv4 import
+- Fix missing uuidv4 import in integration test
+- Disable w3c check for Chrome Android webdriver integration tests
+- Fix setSinkId() from throwing DOMException in Chromium browsers
+- Fixing the ability to choose default input in browsers when default changes
+
+## [1.10.0] - 2020-06-23
+
+### Added
+- Add position in frame to attendee updates
+- Add stale-issue bot configuration
+- Add simulcast support and provides new uplink downlink policies
+- Add MultiLogger to support logging to multiple Logger instances
+- Add resize listener on HTMLVideoElement in demo
+- Add simulcast integration tests
+- Add unit tests for source files previously excluded in test coverage
+
+### Changed
+- Use GET instead of POST to obtain TURN credentials
+- Move integration tests to use meeting V2 demo
+- Update to add ability to run integration tests in mobile devices
+
+### Removed
+
+### Fixed
+- Update cloudwatch log stream ID to have attendee_id
+- Fix Firefox 68 codec preference issues
+- Fix uplink max bitrate value calculation
+
+## [1.9.0] - 2020-06-12
+
+### Added
+
+### Changed
+- Bump websocket-extensions from 0.1.3 to 0.1.4
+- Update SignalingProtocol.proto and use SDK version in JoinFrame
+
+### Removed
+
+### Fixed
+- Fix duplicate tiles and error logs due to external id race condition
+- Suppress presence leave when attendee has already joined from another device (#427)
+
+## [1.8.0] - 2020-06-05
+
+### Added
+- Add an integration tests to check remote video when reconnecting
+- Add device controller tests
+- Add option to run integration tests in Sauce Labs headless
+
+### Changed
+- Switch demo DDB table to on demand
+- Restart the session if an attendee is not present during initial connection
+
+### Removed
+
+### Fixed
+- Handle user revoking video input permission
+- Fix FinishGatheringICECandidatesTask when there are no turn credentials
+- Fix log line to print device constraints
+- Fix build line to take out duplicate npm install
+- Fix video audio preview for mobile devices
+- Fix black remote video tiles on reconnect
+- Fix LED light issue
+- Fix typo in MeetingNotificaionsEvent present in template.yaml
+
 ## [1.7.0] - 2020-05-23
 
 ### Added
@@ -15,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add 'dropped' boolean attribute to realtime interface to indicate attendee drop
 
 ### Changed
-- Styling and Markdown support for meeting demo chat
+- Support styling and Markdown for meeting demo chat
 - Update signaling protocol
 
 ### Removed
@@ -105,7 +187,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.0] - 2020-04-17
 
 ### Added
-- Enabled the use of send-side bandwidth estimation
+- Enable the use of send-side bandwidth estimation
 - Add guide for content sharing
 - Display meeting id in the demo app
 - Add additional callback in AudioVideoObserver to indicate video downlink pressure
@@ -136,7 +218,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Remove unimplemented callbacks remoteDidMuteAudio and remoteDidUnmuteAudio on AudioVideoObserver
 - Remove the minimal demo app
-- Removed incomplete demo and component directories
+- Remove incomplete demo and component directories
 
 ### Fixed
 - Fix retry logic for integration test
@@ -156,8 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Add BITRATES in SdkSignalFrame Type and regenerate corresponding JS and TS protocol files.
 - Add new ContentShareController APIs
-- Getting Started guide
-- Doc guide generator
+- Add Getting Started guide
+- Add doc guide generator
 - Add basic component library setup
 - Add injectable session URL rewrite function to support proxies
 - Add POSTLogger for meeting sessions
@@ -232,12 +314,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move screen view data connection open and close
 - Improve handling of closed signaling connections
 - Update README.md to clarify when to use npm install
-- Adding app quit and meeting leave integration tests and retry for all other tests
+- Add app quit and meeting leave integration tests and retry for all other tests
 - Limit WebSocket reconnect attempts
-- Refactored default screen sharing session start to fix state corruption bug
+- Refactor default screen sharing session start to fix state corruption bug
 - Update Travis script to separate unit and integration tests into different jobs.
 - Validate session Id and disable extendedDebugging flag for SauceLabs
-- Fixing infinite loop when retrying in audio and video integ tests
+- Fix infinite loop when retrying in audio and video integ tests
 - Make sure both participants in audio and video tests reach finish state before retrying
 - Trigger videoSendBandwidthDidChange and videoReceiveBandwidthDidChange for Safari
 - Do not disconnect video element with different srcObj when destroying video tile
@@ -263,7 +345,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix meeting leave integration tests
 - Reject an unresolved promise when canceling CreateSDPTask
 - Fix Firefox keyframing
-- Fixing screen share integration test
+- Fix screen share integration test
 - Fix null or empty device handling
 - Fix demo screen share button states
 - Fix bug that caused screenview to stay off when screenshare was toggled
@@ -271,12 +353,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix preview not switching issue and stop track during disconnect
 - Reset connectionHealthData before (re)connection
 - Fix a bug that prevented device change from triggering observers
-- Fixes for serverless demo deployment scripts
-- Fixing integration test timeout and test sync between runs browsers
-- Safari crashes when remote video tiles are added or toggled
+- Fix serverless demo deployment scripts
+- Fix integration test timeout and test sync between runs browsers
+- Fix Safari crashes when remote video tiles are added or toggled
 - Fix unhandled Promise rejection in DefaultScreenSharingSession#start
 - Fix canary deployment script
-- Fix sip call integration test
+- Fix SIP call integration test
 - Fix Travis deployment script
 
 ## [1.0.0] - 2019-11-20
+
+### Added
+
+- Release first version of library

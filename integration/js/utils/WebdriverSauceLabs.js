@@ -4,7 +4,6 @@ const axios = require('axios');
 const Base64 = require('js-base64').Base64;
 const {AppPage} = require('../pages/AppPage');
 
-
 const getPlatformName = capabilities => {
   switch (capabilities.platform) {
     case 'MAC':
@@ -14,6 +13,12 @@ const getPlatformName = capabilities => {
       return 'macOS 10.14';
     case 'WINDOWS':
       return 'Windows 10';
+    case 'LINUX':
+      return 'Linux';
+    case 'IOS':
+      return 'iOS';
+    case 'ANDROID':
+      return 'Android';
     default:
       return '';
   }
@@ -88,44 +93,98 @@ const getSauceLabsConfig = (capabilities) => {
     name: capabilities.name,
     tags: [capabilities.name],
     seleniumVersion: '3.141.59',
-    extendedDebugging: true,
-    capturePerformance: true,
-    crmuxdriverVersion: 'beta',
-    tunnelIdentifier: process.env.TRAVIS_JOB_NUMBER
+    tunnelIdentifier: process.env.TRAVIS_JOB_NUMBER,
+    ...(capabilities.platform.toUpperCase() !== 'LINUX' && {
+      extendedDebugging: true,
+      capturePerformance: true,
+      crmuxdriverVersion: 'beta'
+    })
   }
 };
 
-const getSauceLabsUrl = () => {
+const getSauceLabsDomain = (platform)  => {
+  const platformUpperCase = platform.toUpperCase();
+  if (platformUpperCase === 'LINUX') {
+    return 'us-east-1.saucelabs.com';
+  } else if (platformUpperCase === 'ANDROID' || platformUpperCase === 'IOS') {
+    return 'us1-manual.app.testobject.com';
+  }
+  return 'saucelabs.com';
+};
+
+const getSafariIOSConfig = (capabilities) => {
+  return {
+    platformName: 'iOS',
+    platformVersion: capabilities.version,
+    testobject_api_key: '059183B9A1A148D188B3AC5BA1ECBD52',
+    deviceOrientation: 'portrait',
+    name: capabilities.name,
+  };
+};
+
+const getChromeAndroidConfig = capabilities => {
+  return {
+    platformName: 'Android',
+    platformVersion: capabilities.version,
+    testobject_api_key: '059183B9A1A148D188B3AC5BA1ECBD52',
+    deviceOrientation: 'portrait',
+    chromeOptions: {
+      'args': ['use-fake-device-for-media-stream', 'use-fake-ui-for-media-stream'],
+      'w3c': false
+    },
+    name: capabilities.name,
+  };
+};
+
+const getSauceLabsUrl = (domain) => {
+  if (isMobileDomain(domain)) {
+    return (
+      'https://us1-manual.app.testobject.com/wd/hub'
+    );
+  }
   return (
     'https://' +
     process.env.SAUCE_USERNAME +
     ':' +
     process.env.SAUCE_ACCESS_KEY +
-    '@ondemand.saucelabs.com:443/wd/hub'
+    `@ondemand.${domain}:443/wd/hub`
   );
 };
 
+const isMobileDomain = (domain) => {
+  return domain === 'us1-manual.app.testobject.com' ? true : false;
+}
 
 class SaucelabsSession {
   static async createSession(capabilities) {
     let cap = {};
     if (capabilities.browserName === 'chrome') {
-      cap = getChromeCapabilities(capabilities);
+      if (capabilities.platform === 'ANDROID') {
+        cap = getChromeAndroidConfig(capabilities);
+      } else {
+        cap = getChromeCapabilities(capabilities);
+      }
     } else if (capabilities.browserName === 'firefox') {
       cap = getFirefoxCapabilities(capabilities);
     } else {
-      cap = getSafariCapabilities(capabilities);
+      if (capabilities.platform === 'IOS') {
+        cap = getSafariIOSConfig(capabilities);
+      } else {
+        cap = getSafariCapabilities(capabilities);
+      }
     }
+    const domain = getSauceLabsDomain(capabilities.platform);
     const driver = await new Builder()
-      .usingServer(getSauceLabsUrl())
+      .usingServer(getSauceLabsUrl(domain))
       .withCapabilities(cap)
       .forBrowser(capabilities.browserName)
       .build();
-    return new SaucelabsSession(driver);
+    return new SaucelabsSession(driver, domain);
   }
 
-  constructor(inDriver) {
+  constructor(inDriver, domain) {
     this.driver = inDriver;
+    this.domain = domain;
   }
 
   async init() {
@@ -160,7 +219,12 @@ class SaucelabsSession {
   async updateTestResults(passed) {
     const sessionId = await this.getSessionId();
     console.log(`Publishing test results to saucelabs for session: ${sessionId} status: ${passed ? 'passed' : 'failed'}`);
-    const url = `https://saucelabs.com/rest/v1/${process.env.SAUCE_USERNAME}/jobs/${sessionId}`;
+    let url = "";
+    if (isMobileDomain(this.domain)) {
+      url = `https://app.testobject.com/api/rest/v2/appium/session/${sessionId}/test/`;
+    } else {
+      url = `https://${this.domain}/rest/v1/${process.env.SAUCE_USERNAME}/jobs/${sessionId}`;
+    }
     await axios.put(url, `{\"passed\": ${passed}}`, {
       headers: {
         "Accept": "application/json",

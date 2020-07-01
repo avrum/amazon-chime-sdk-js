@@ -47,6 +47,12 @@ export default class MeetingSessionConfiguration {
   screenViewingTimeoutMs: number = 5000;
 
   /**
+   * Maximum amount of time in milliseconds to wait for the current attendee to be present
+   * after initial connection.
+   */
+  attendeePresenceTimeoutMs: number = 0;
+
+  /**
    * Screen sharing session options.
    */
   screenSharingSessionOptions: ScreenSharingSessionOptions = {};
@@ -66,6 +72,11 @@ export default class MeetingSessionConfiguration {
    * Feature flag to enable Chromium-based browsers
    */
   enableUnifiedPlanForChromiumBasedBrowsers: boolean = false;
+
+  /**
+   * Feature flag to enable Simulcast
+   */
+  enableSimulcastForUnifiedPlanChromiumBasedBrowsers: boolean = false;
 
   /**
    * Video downlink bandwidth policy to determine which remote videos
@@ -152,6 +163,8 @@ export default class MeetingSessionConfiguration {
     if (new DefaultBrowserBehavior().screenShareSendsOnlyKeyframes()) {
       this.screenSharingSessionOptions = { bitRate: 384000 };
     }
+
+    // simulcast feature flag will override the following policies when DefaultAudioVideoController is created
     this.videoDownlinkBandwidthPolicy = new AllHighestVideoBandwidthPolicy(
       this.credentials ? this.credentials.attendeeId : null
     );

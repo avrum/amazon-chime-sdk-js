@@ -3,7 +3,7 @@ const {UserJoinedMeetingCheck, LocalVideoCheck, RemoteVideoCheck, UserAuthentica
 const {AppPage} = require('./pages/AppPage');
 const {TestUtils} = require('./node_modules/kite-common');
 const SdkBaseTest = require('./utils/SdkBaseTest');
-const uuidv4 = require('uuid/v4');
+const { v4: uuidv4 } = require('uuid');
 
 class VideoTest extends SdkBaseTest {
   constructor(name, kiteConfig) {
@@ -12,9 +12,10 @@ class VideoTest extends SdkBaseTest {
 
   async runIntegrationTest() {
     const session = this.seleniumSessions[0];
+    const useSimulcast = this.useSimulcast;
     await WaitForMeetingToBeCreated.executeStep(this, session);
     await OpenAppStep.executeStep(this, session);
-    await AuthenticateUserStep.executeStep(this, session, this.attendeeId);
+    await AuthenticateUserStep.executeStep(this, session, this.attendeeId, useSimulcast);
     await UserAuthenticationCheck.executeStep(this, session);
     await JoinMeetingStep.executeStep(this, session);
     await UserJoinedMeetingCheck.executeStep(this, session, this.attendeeId);

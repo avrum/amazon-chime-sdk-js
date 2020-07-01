@@ -212,21 +212,23 @@ describe('DefaultSDP', () => {
     });
   });
 
-  describe('withPlanBSimulcast', () => {
+  describe('withOldFashionedMungingSimulcast', () => {
     it('returns same SDP if SDP is garbage', () => {
       const sdpLocalOffer = new DefaultSDP('garbage data');
-      const simulcastedSDP = new DefaultSDP(sdpLocalOffer.sdp).withPlanBSimulcast(2);
+      const simulcastedSDP = new DefaultSDP(sdpLocalOffer.sdp).withOldFashionedMungingSimulcast(2);
       expect(simulcastedSDP.sdp).to.equal(sdpLocalOffer.sdp);
     });
 
     it('returns same SDP if SDP has no video section', () => {
-      const simulcastedSDP = new DefaultSDP(SDPMock.VIDEO_HOST_AUDIO_ANSWER).withPlanBSimulcast(2);
+      const simulcastedSDP = new DefaultSDP(
+        SDPMock.VIDEO_HOST_AUDIO_ANSWER
+      ).withOldFashionedMungingSimulcast(2);
       expect(simulcastedSDP.sdp).to.equal(SDPMock.VIDEO_HOST_AUDIO_ANSWER);
     });
 
     it('returns same SDP if only one layer is wanted for video', () => {
       const sdpLocalOffer = new DefaultSDP(SDPMock.LOCAL_OFFER_WITH_AUDIO_VIDEO);
-      const simulcastedSDP = new DefaultSDP(sdpLocalOffer.sdp).withPlanBSimulcast(1);
+      const simulcastedSDP = new DefaultSDP(sdpLocalOffer.sdp).withOldFashionedMungingSimulcast(1);
       expect(simulcastedSDP.sdp).to.equal(sdpLocalOffer.sdp);
     });
 
@@ -234,27 +236,27 @@ describe('DefaultSDP', () => {
       const sdpLocalOffer = new DefaultSDP(
         SDPMock.LOCAL_OFFER_WITH_AUDIO_VIDEO_WITH_NO_SSRC_ATTRIBUTE_VALUE
       );
-      const simulcastedSDP = new DefaultSDP(sdpLocalOffer.sdp).withPlanBSimulcast(2);
+      const simulcastedSDP = new DefaultSDP(sdpLocalOffer.sdp).withOldFashionedMungingSimulcast(2);
       expect(simulcastedSDP.sdp).to.equal(sdpLocalOffer.sdp);
     });
 
     it('returns same SDP if video section has no FID group', () => {
       const sdpLocalOffer = new DefaultSDP(SDPMock.LOCAL_OFFER_WITH_AUDIO_VIDEO_WITHOUT_FID);
-      const simulcastedSDP = new DefaultSDP(sdpLocalOffer.sdp).withPlanBSimulcast(2);
+      const simulcastedSDP = new DefaultSDP(sdpLocalOffer.sdp).withOldFashionedMungingSimulcast(2);
       expect(simulcastedSDP.sdp).to.equal(SDPMock.LOCAL_OFFER_WITH_AUDIO_VIDEO_WITHOUT_FID);
     });
 
     it('returns same SDP if original SDP only has recv video section', () => {
-      const simulcastedSDP = new DefaultSDP(SDPMock.LOCAL_OFFER_WITH_RECV_VIDEO).withPlanBSimulcast(
-        2
-      );
+      const simulcastedSDP = new DefaultSDP(
+        SDPMock.LOCAL_OFFER_WITH_RECV_VIDEO
+      ).withOldFashionedMungingSimulcast(2);
       expect(simulcastedSDP.sdp).to.equal(SDPMock.LOCAL_OFFER_WITH_RECV_VIDEO);
     });
 
     it('returns simulcasted SDP with 2 layers if SDP has correct PlanB sendrecv video section', () => {
       const simulcastedSDP = new DefaultSDP(
         SDPMock.LOCAL_OFFER_WITH_AUDIO_VIDEO
-      ).withPlanBSimulcast(2).sdp;
+      ).withOldFashionedMungingSimulcast(2).sdp;
       expect(simulcastedSDP).to.equal(SDPMock.LOCAL_OFFER_WITH_AUDIO_VIDEO_SIMULCAST_TWO_LAYERS);
     });
   });
@@ -302,6 +304,33 @@ describe('DefaultSDP', () => {
       const sdp2 = new DefaultSDP(SafariSDPMock.SAFARI_AUDIO_VIDEO_SENDING);
       expect(sdp1.videoSendSectionHasDifferentSSRC(sdp2)).to.equal(false);
       expect(sdp2.videoSendSectionHasDifferentSSRC(sdp1)).to.equal(false);
+    });
+  });
+
+  describe('preferH264IfExists', () => {
+    it('sorts codec preference', () => {
+      const sdpObj = new DefaultSDP(FirefoxSDPMock.FIREFOX_REMOTE_ANSWER_WITH_VP8_H264_UNSORTED);
+      expect(sdpObj.preferH264IfExists().sdp).to.deep.equal(
+        FirefoxSDPMock.FIREFOX_REMOTE_ANSWER_WITH_VP8_H264_SORTED
+      );
+      const newSdpObj = new DefaultSDP(FirefoxSDPMock.FIREFOX_NIGHTLY_79_REMOTE_ANSWER);
+      expect(newSdpObj.preferH264IfExists().sdp).to.deep.equal(
+        FirefoxSDPMock.FIREFOX_NIGHTLY_79_REMOTE_ANSWER_H264_PREFERRED
+      );
+    });
+
+    it('does nothing if the preference is sorted', () => {
+      const newSdpObj = new DefaultSDP(FirefoxSDPMock.FIREFOX_REMOTE_ANSWER_WITH_VP8_H264_SORTED);
+      expect(newSdpObj.preferH264IfExists().sdp).to.deep.equal(
+        FirefoxSDPMock.FIREFOX_REMOTE_ANSWER_WITH_VP8_H264_SORTED
+      );
+    });
+
+    it('does nothing if only contain VP8 or H264', () => {
+      const sdpObj = new DefaultSDP(FirefoxSDPMock.FIREFOX_REMOTE_ANSWER_WITH_VP8_ONLY);
+      expect(sdpObj.preferH264IfExists().sdp).to.deep.equal(
+        FirefoxSDPMock.FIREFOX_REMOTE_ANSWER_WITH_VP8_ONLY
+      );
     });
   });
 });
