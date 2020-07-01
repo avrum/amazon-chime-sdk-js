@@ -6,6 +6,7 @@ import Logger from '../logger/Logger';
 import SignalingClientObserver from '../signalingclientobserver/SignalingClientObserver';
 import {
   SdkAudioControlFrame,
+  SdkClientDetails,
   SdkClientMetricFrame,
   SdkDataMessageFrame,
   SdkJoinFlags,
@@ -19,6 +20,7 @@ import {
   SdkStreamServiceType,
   SdkSubscribeFrame,
 } from '../signalingprotocol/SignalingProtocol.js';
+import Versioning from '../versioning/Versioning';
 import WebSocketAdapter from '../websocketadapter/WebSocketAdapter';
 import WebSocketReadyState from '../websocketadapter/WebSocketReadyState';
 import SignalingClient from './SignalingClient';
@@ -83,6 +85,13 @@ export default class DefaultSignalingClient implements SignalingClient {
       joinFrame.flags |= SdkJoinFlags.USE_SEND_SIDE_BWE;
     }
     joinFrame.flags |= settings.sendBitrates ? SdkJoinFlags.SEND_BITRATES : 0;
+    joinFrame.clientDetails = SdkClientDetails.create({
+      platformName: browserBehavior.name(),
+      platformVersion: browserBehavior.version(),
+      clientSource: Versioning.sdkName,
+      chimeSdkVersion: Versioning.sdkVersion,
+    });
+
     const message = SdkSignalFrame.create();
     message.type = SdkSignalFrame.Type.JOIN;
     message.join = joinFrame;
@@ -114,15 +123,13 @@ export default class DefaultSignalingClient implements SignalingClient {
     }
     if (settings.localVideoEnabled) {
       subscribeFrame.duplex = SdkStreamServiceType.DUPLEX;
-      const videoStream = SdkStreamDescriptor.create();
-      videoStream.mediaType = SdkStreamMediaType.VIDEO;
-      videoStream.trackLabel = 'AmazonChimeExpressVideo';
-      videoStream.attendeeId = settings.attendeeId;
-      videoStream.streamId = 2;
-      videoStream.groupId = 2;
-      videoStream.framerate = settings.videoInputFrameRate;
-      videoStream.maxBitrateKbps = settings.videoInputMaxBitrateKbps;
-      subscribeFrame.sendStreams.push(videoStream);
+      for (let i = 0; i < settings.videoStreamDescriptions.length; i++) {
+        // Non-simulcast use DefaultVideoStreamIndex.localStreamDescriptions
+        // which is the exact old behavior
+        const streamDescription = settings.videoStreamDescriptions[i].clone();
+        streamDescription.attendeeId = settings.attendeeId;
+        subscribeFrame.sendStreams.push(streamDescription.toStreamDescriptor());
+      }
     }
     const message = SdkSignalFrame.create();
     message.type = SdkSignalFrame.Type.SUBSCRIBE;

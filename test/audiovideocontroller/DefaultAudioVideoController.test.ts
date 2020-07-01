@@ -20,12 +20,15 @@ import DefaultReconnectController from '../../src/reconnectcontroller/DefaultRec
 import TimeoutScheduler from '../../src/scheduler/TimeoutScheduler';
 import {
   SdkAudioMetadataFrame,
+  SdkAudioStreamIdInfo,
   SdkAudioStreamIdInfoFrame,
   SdkIndexFrame,
   SdkLeaveAckFrame,
   SdkSignalFrame,
   SdkSubscribeAckFrame,
 } from '../../src/signalingprotocol/SignalingProtocol.js';
+import AllHighestVideoBandwidthPolicy from '../../src/videodownlinkbandwidthpolicy/AllHighestVideoBandwidthPolicy';
+import NScaleVideoUplinkBandwidthPolicy from '../../src/videouplinkbandwidthpolicy/NScaleVideoUplinkBandwidthPolicy';
 import DefaultWebSocketAdapter from '../../src/websocketadapter/DefaultWebSocketAdapter';
 import DOMMockBehavior from '../dommock/DOMMockBehavior';
 import DOMMockBuilder from '../dommock/DOMMockBuilder';
@@ -43,6 +46,8 @@ describe('DefaultAudioVideoController', () => {
   let reconnectController: DefaultReconnectController;
   let domMockBuilder: DOMMockBuilder;
   let domMockBehavior: DOMMockBehavior;
+
+  const attendeeId = 'foo-attendee';
 
   class TestBackoff implements Backoff {
     reset(): void {}
@@ -69,8 +74,9 @@ describe('DefaultAudioVideoController', () => {
     configuration.urls.turnControlURL = 'https://turncontrol.test.example.com';
     configuration.urls.signalingURL = 'https://signaling.test.example.com';
     configuration.credentials = new MeetingSessionCredentials();
-    configuration.credentials.attendeeId = 'foo-attendee';
+    configuration.credentials.attendeeId = attendeeId;
     configuration.credentials.joinToken = 'foo-join-token';
+    configuration.attendeePresenceTimeoutMs = 5000;
     return configuration;
   }
 
@@ -116,7 +122,12 @@ describe('DefaultAudioVideoController', () => {
 
   // For ListenForVolumeIndicatorsTask
   function makeAudioStreamIdInfoFrame(): Uint8Array {
+    const streamInfo = SdkAudioStreamIdInfo.create();
+    streamInfo.audioStreamId = 1;
+    streamInfo.attendeeId = attendeeId;
+    streamInfo.externalUserId = attendeeId;
     const frame = SdkAudioStreamIdInfoFrame.create();
+    frame.streams = [streamInfo];
     const signal = SdkSignalFrame.create();
     signal.type = SdkSignalFrame.Type.AUDIO_STREAM_ID_INFO;
     signal.audioStreamIdInfo = frame;
@@ -141,6 +152,10 @@ describe('DefaultAudioVideoController', () => {
 
   // For FinishGatheringICECandidatesTask
   function makeICEEvent(candidateStr: string | null): RTCPeerConnectionIceEvent {
+    if (candidateStr === null) {
+      return new RTCPeerConnectionIceEvent('icecandidate', {});
+    }
+
     let iceCandidate: RTCIceCandidate = null;
     if (candidateStr) {
       // @ts-ignore
@@ -162,6 +177,12 @@ describe('DefaultAudioVideoController', () => {
     await delay();
   }
 
+  async function sendAudioStreamIdInfoFrame(): Promise<void> {
+    await delay();
+    webSocketAdapter.send(makeAudioStreamIdInfoFrame());
+    await delay();
+  }
+
   async function start(): Promise<void> {
     await delay();
     audioVideoController.start();
@@ -169,6 +190,9 @@ describe('DefaultAudioVideoController', () => {
     webSocketAdapter.send(makeIndexFrame());
     await delay(300);
     await sendICEEventAndSubscribeAckFrame();
+    await delay();
+    await sendAudioStreamIdInfoFrame();
+    await delay();
   }
 
   async function stop(): Promise<void> {
@@ -203,7 +227,9 @@ describe('DefaultAudioVideoController', () => {
   });
 
   describe('start', () => {
-    it('can be started', async () => {
+    it('can be started without policies in configuration', async () => {
+      configuration.videoUplinkBandwidthPolicy = null;
+      configuration.videoDownlinkBandwidthPolicy = null;
       audioVideoController = new DefaultAudioVideoController(
         configuration,
         new NoOpDebugLogger(),
@@ -245,6 +271,64 @@ describe('DefaultAudioVideoController', () => {
 
       expect(sessionStarted).to.be.true;
       expect(sessionConnecting).to.be.true;
+
+      await stop();
+    });
+
+    it('can be started with customized video policies', async () => {
+      const myUplinkPolicy = new NScaleVideoUplinkBandwidthPolicy('test');
+      const myDownlinkPolicy = new AllHighestVideoBandwidthPolicy('test');
+      configuration.videoUplinkBandwidthPolicy = myUplinkPolicy;
+      configuration.videoDownlinkBandwidthPolicy = myDownlinkPolicy;
+      audioVideoController = new DefaultAudioVideoController(
+        configuration,
+        new NoOpDebugLogger(),
+        webSocketAdapter,
+        new NoOpMediaStreamBroker(),
+        reconnectController
+      );
+      let sessionStarted = false;
+      let sessionConnecting = false;
+      class TestObserver implements AudioVideoObserver {
+        audioVideoDidStart(): void {
+          // use this opportunity to verify that start is idempotent
+          audioVideoController.start();
+          sessionStarted = true;
+        }
+        audioVideoDidStartConnecting(): void {
+          sessionConnecting = true;
+        }
+      }
+      audioVideoController.addObserver(new TestObserver());
+      expect(audioVideoController.configuration).to.equal(configuration);
+      expect(audioVideoController.rtcPeerConnection).to.be.null;
+      await start();
+      new TimeoutScheduler(10).start(() => {
+        // use this opportunity to verify that start cannot happen while connecting
+        audioVideoController.start();
+      });
+
+      await delay();
+      // use this opportunity to test signaling mute state to the server
+      audioVideoController.realtimeController.realtimeMuteLocalAudio();
+      audioVideoController.realtimeController.realtimeUnmuteLocalAudio();
+
+      await delay();
+      // use this opportunity to test volume indicators
+      webSocketAdapter.send(makeIndexFrame());
+      webSocketAdapter.send(makeAudioStreamIdInfoFrame());
+      webSocketAdapter.send(makeAudioMetadataFrame());
+
+      expect(sessionStarted).to.be.true;
+      expect(sessionConnecting).to.be.true;
+      // @ts-ignore
+      expect(audioVideoController.meetingSessionContext.videoDownlinkBandwidthPolicy).to.equal(
+        myDownlinkPolicy
+      );
+      // @ts-ignore
+      expect(audioVideoController.meetingSessionContext.videoUplinkBandwidthPolicy).to.equal(
+        myUplinkPolicy
+      );
 
       await stop();
     });
@@ -506,8 +590,6 @@ describe('DefaultAudioVideoController', () => {
       let sessionStarted = false;
       class TestObserver implements AudioVideoObserver {
         audioVideoDidStart(): void {
-          // use this opportunity to verify that start is idempotent
-          audioVideoController.start();
           sessionStarted = true;
         }
       }
@@ -534,8 +616,6 @@ describe('DefaultAudioVideoController', () => {
       let sessionStarted = false;
       class TestObserver implements AudioVideoObserver {
         audioVideoDidStart(): void {
-          // use this opportunity to verify that start is idempotent
-          audioVideoController.start();
           sessionStarted = true;
         }
       }
@@ -562,8 +642,6 @@ describe('DefaultAudioVideoController', () => {
       let sessionStarted = false;
       class TestObserver implements AudioVideoObserver {
         audioVideoDidStart(): void {
-          // use this opportunity to verify that start is idempotent
-          audioVideoController.start();
           sessionStarted = true;
         }
       }
@@ -781,8 +859,6 @@ describe('DefaultAudioVideoController', () => {
       let sessionConnecting = false;
       class TestObserver implements AudioVideoObserver {
         audioVideoDidStart(): void {
-          // use this opportunity to verify that start is idempotent
-          audioVideoController.start();
           sessionStarted = true;
         }
         audioVideoDidStartConnecting(): void {
@@ -827,8 +903,6 @@ describe('DefaultAudioVideoController', () => {
       let sessionConnecting = false;
       class TestObserver implements AudioVideoObserver {
         audioVideoDidStart(): void {
-          // use this opportunity to verify that start is idempotent
-          audioVideoController.start();
           sessionStarted = true;
         }
         audioVideoDidStartConnecting(): void {
@@ -1011,6 +1085,9 @@ describe('DefaultAudioVideoController', () => {
         // Finish the start operation by sending required frames and events.
         webSocketAdapter.send(makeIndexFrame());
         await sendICEEventAndSubscribeAckFrame();
+        await delay();
+        await sendAudioStreamIdInfoFrame();
+        await delay(300);
         // Finally, stop this test.
         await stop();
       });
@@ -1048,6 +1125,8 @@ describe('DefaultAudioVideoController', () => {
         webSocketAdapter.send(makeIndexFrame());
         await delay(300);
         await sendICEEventAndSubscribeAckFrame();
+        await delay();
+        await sendAudioStreamIdInfoFrame();
         await delay(300);
         await stop();
       });
@@ -1118,6 +1197,126 @@ describe('DefaultAudioVideoController', () => {
         await stop();
       });
     }).timeout(5000);
+  });
+
+  describe('reconnect for no attendee presence', () => {
+    it('reconnects when the start operation fails due to no attendee presence event', function(done) {
+      this.timeout(15000);
+
+      const logger = new NoOpDebugLogger();
+      const spy = sinon.spy(logger, 'error');
+      const noAttendeeTimeout = configuration.attendeePresenceTimeoutMs;
+
+      class TestMediaStreamBroker extends NoOpMediaStreamBroker {
+        requestAudioInputStream(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+
+      configuration.connectionTimeoutMs = 15000;
+      audioVideoController = new DefaultAudioVideoController(
+        configuration,
+        logger,
+        webSocketAdapter,
+        new TestMediaStreamBroker(),
+        reconnectController
+      );
+      class TestObserver implements AudioVideoObserver {
+        audioVideoDidStop(sessionStatus: MeetingSessionStatus): void {
+          expect(sessionStatus.statusCode()).to.equal(MeetingSessionStatusCode.Left);
+          expect(spy.calledWith('connection failed with status code: NoAttendeePresent')).to.be
+            .true;
+          spy.restore();
+          done();
+        }
+      }
+      audioVideoController.addObserver(new TestObserver());
+
+      // Start and wait for the audio stream ID info frame.
+      // SDK uses this info frame to send the attendee presence event.
+      audioVideoController.start();
+      delay().then(async () => {
+        await delay(300);
+        webSocketAdapter.send(makeIndexFrame());
+        await delay(300);
+        await sendICEEventAndSubscribeAckFrame();
+        await delay();
+      });
+
+      delay(noAttendeeTimeout + 2000).then(async () => {
+        // Finish LeaveAndReceiveLeaveAckTask executed by the failed "start."
+        webSocketAdapter.send(makeLeaveAckFrame());
+        await delay(300);
+
+        // Finish the start operation and stop this test.
+        webSocketAdapter.send(makeIndexFrame());
+        await delay(300);
+        await sendICEEventAndSubscribeAckFrame();
+        await delay();
+        await sendAudioStreamIdInfoFrame();
+        await delay(300);
+        await stop();
+      });
+    });
+
+    it('does not reconnect for no attendee presence event if the attendee presence timeout is set to zero', function(done) {
+      this.timeout(15000);
+
+      const logger = new NoOpDebugLogger();
+      const spy = sinon.spy(logger, 'error');
+
+      class TestMediaStreamBroker extends NoOpMediaStreamBroker {
+        requestAudioInputStream(): Promise<void> {
+          return Promise.resolve();
+        }
+      }
+
+      configuration.connectionTimeoutMs = 2000;
+      configuration.attendeePresenceTimeoutMs = 0;
+      audioVideoController = new DefaultAudioVideoController(
+        configuration,
+        logger,
+        webSocketAdapter,
+        new TestMediaStreamBroker(),
+        reconnectController
+      );
+      class TestObserver implements AudioVideoObserver {
+        audioVideoDidStop(sessionStatus: MeetingSessionStatus): void {
+          expect(sessionStatus.statusCode()).to.equal(MeetingSessionStatusCode.Left);
+          expect(spy.calledWith('connection failed with status code: NoAttendeePresent')).to.be
+            .false;
+          spy.restore();
+          done();
+        }
+      }
+      audioVideoController.addObserver(new TestObserver());
+
+      // Start and wait for the audio stream ID info frame.
+      // SDK uses this info frame to send the attendee presence event.
+      audioVideoController.start();
+      delay().then(async () => {
+        await delay(300);
+        webSocketAdapter.send(makeIndexFrame());
+        await delay(300);
+        await sendICEEventAndSubscribeAckFrame();
+        await delay();
+      });
+
+      delay(configuration.connectionTimeoutMs + 100).then(async () => {
+        // Finish LeaveAndReceiveLeaveAckTask executed by the failed "start."
+        webSocketAdapter.send(makeLeaveAckFrame());
+        await delay(300);
+
+        // Finish the start operation and stop this test.
+        webSocketAdapter.send(makeIndexFrame());
+        await delay(300);
+        await sendICEEventAndSubscribeAckFrame();
+        await delay();
+        await sendAudioStreamIdInfoFrame();
+        await delay(300);
+        await stop();
+      });
+    });
   });
 
   describe('getters', () => {
@@ -1333,6 +1532,92 @@ describe('DefaultAudioVideoController', () => {
 
       const result = await audioVideoController.getRTCPeerConnectionStats();
       expect(result).to.be.null;
+    });
+  });
+
+  describe('when simulcast is enabled', () => {
+    it('will be automatically switched off if platform is not Chrome', () => {
+      configuration.enableUnifiedPlanForChromiumBasedBrowsers = true;
+      configuration.enableSimulcastForUnifiedPlanChromiumBasedBrowsers = true;
+      audioVideoController = new DefaultAudioVideoController(
+        configuration,
+        new NoOpDebugLogger(),
+        webSocketAdapter,
+        new NoOpDeviceController(),
+        reconnectController
+      );
+      // @ts-ignore
+      expect(audioVideoController.enableSimulcast).to.equal(false);
+      domMockBehavior.browserName = 'chrome';
+      domMockBuilder = new DOMMockBuilder(domMockBehavior);
+      audioVideoController = new DefaultAudioVideoController(
+        configuration,
+        new NoOpDebugLogger(),
+        webSocketAdapter,
+        new NoOpDeviceController(),
+        reconnectController
+      );
+      // @ts-ignore
+      expect(audioVideoController.enableSimulcast).to.equal(true);
+    });
+
+    it('can be started', async () => {
+      configuration.enableUnifiedPlanForChromiumBasedBrowsers = true;
+      configuration.enableSimulcastForUnifiedPlanChromiumBasedBrowsers = true;
+      domMockBehavior.browserName = 'chrome';
+      domMockBuilder = new DOMMockBuilder(domMockBehavior);
+      audioVideoController = new DefaultAudioVideoController(
+        configuration,
+        new NoOpDebugLogger(),
+        webSocketAdapter,
+        new NoOpDeviceController(),
+        reconnectController
+      );
+      // @ts-ignore
+      expect(audioVideoController.enableSimulcast).to.equal(true);
+
+      let sessionStarted = false;
+      let sessionConnecting = false;
+      class TestObserver implements AudioVideoObserver {
+        audioVideoDidStart(): void {
+          // use this opportunity to verify that start is idempotent
+          audioVideoController.start();
+          sessionStarted = true;
+        }
+        audioVideoDidStartConnecting(): void {
+          sessionConnecting = true;
+        }
+      }
+      audioVideoController.addObserver(new TestObserver());
+      expect(audioVideoController.configuration).to.equal(configuration);
+      expect(audioVideoController.rtcPeerConnection).to.be.null;
+      await start();
+      new TimeoutScheduler(10).start(() => {
+        // use this opportunity to verify that start cannot happen while connecting
+        audioVideoController.start();
+      });
+
+      await delay();
+      // use this opportunity to test signaling mute state to the server
+      audioVideoController.realtimeController.realtimeMuteLocalAudio();
+      audioVideoController.realtimeController.realtimeUnmuteLocalAudio();
+
+      await delay();
+      // use this opportunity to test volume indicators
+      webSocketAdapter.send(makeIndexFrame());
+      webSocketAdapter.send(makeAudioStreamIdInfoFrame());
+      webSocketAdapter.send(makeAudioMetadataFrame());
+
+      expect(sessionStarted).to.be.true;
+      expect(sessionConnecting).to.be.true;
+
+      const tileId = audioVideoController.videoTileController.startLocalVideoTile();
+      expect(tileId).to.equal(1);
+      await sendICEEventAndSubscribeAckFrame();
+      audioVideoController.videoTileController.stopLocalVideoTile();
+      await sendICEEventAndSubscribeAckFrame();
+
+      await stop();
     });
   });
 });

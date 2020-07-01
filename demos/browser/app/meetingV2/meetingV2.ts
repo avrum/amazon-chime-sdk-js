@@ -21,6 +21,7 @@ import {
   DeviceChangeObserver,
   LogLevel,
   Logger,
+  MultiLogger,
   MeetingSession,
   MeetingSessionConfiguration,
   MeetingSessionPOSTLogger,
@@ -34,17 +35,18 @@ import {
 } from '../../../../src/index';
 
 class DemoTileOrganizer {
+  // this is index instead of length
   static MAX_TILES = 17;
   private tiles: { [id: number]: number } = {};
   public tileStates: {[id: number]: boolean } = {};
 
   acquireTileIndex(tileId: number): number {
-    for (let index = 0; index < DemoTileOrganizer.MAX_TILES; index++) {
+    for (let index = 0; index <= DemoTileOrganizer.MAX_TILES; index++) {
       if (this.tiles[index] === tileId) {
         return index;
       }
     }
-    for (let index = 0; index < DemoTileOrganizer.MAX_TILES; index++) {
+    for (let index = 0; index <= DemoTileOrganizer.MAX_TILES; index++) {
       if (!(index in this.tiles)) {
         this.tiles[index] = tileId;
         return index;
@@ -54,7 +56,7 @@ class DemoTileOrganizer {
   }
 
   releaseTileIndex(tileId: number): number {
-    for (let index = 0; index < DemoTileOrganizer.MAX_TILES; index++) {
+    for (let index = 0; index <= DemoTileOrganizer.MAX_TILES; index++) {
       if (this.tiles[index] === tileId) {
         delete this.tiles[index];
         return index;
@@ -145,7 +147,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   // feature flags
   enableWebAudio = false;
-  enableUnifiedPlanForChromiumBasedBrowsers = true;
+  enableUnifiedPlanForChromiumBasedBrowsers = false;
+  enableSimulcast = false;
 
   markdown = require('markdown-it')({linkify: true});
   lastMessageSender: string | null = null;
@@ -163,10 +166,11 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     this.initEventListeners();
     this.initParameters();
     this.setMediaRegion();
-    if (this.isRecorder()) {
+    this.setUpVideoTileElementResizer();
+    if (this.isRecorder() || this.isBroadcaster()) {
       new AsyncScheduler().start(async () => {
         this.meeting = new URL(window.location.href).searchParams.get('m');
-        this.name = '«Meeting Recorder»';
+        this.name = this.isRecorder() ? '«Meeting Recorder»' : '«Meeting Broadcaster»';
         await this.authenticate();
         await this.join();
         this.displayButtonStates();
@@ -307,6 +311,31 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
         await this.openVideoInputFromSelection(videoInput.value, true);
       } catch (err) {
         this.log('no video input device selected');
+      }
+    });
+
+    const optionalFeatures = document.getElementById('optional-features') as HTMLSelectElement;
+    optionalFeatures.addEventListener('change', async (_ev: Event) => {
+      const collections = optionalFeatures.selectedOptions;
+      this.enableSimulcast = false;
+      this.enableWebAudio = false;
+      this.enableUnifiedPlanForChromiumBasedBrowsers = false;
+      this.log("Feature lists:");
+      for (let i = 0; i < collections.length; i++) {
+        // hard code magic
+        if (collections[i].value === 'simulcast') {
+          this.enableSimulcast = true;
+          this.enableUnifiedPlanForChromiumBasedBrowsers = true;
+          this.log('attempt to enable simulcast');
+        }
+        if (collections[i].value === 'webaudio') {
+          this.enableWebAudio = true;
+          this.log('attempt to enable webaudio');
+        }
+        if (collections[i].value === 'unifiedplan') {
+          this.enableUnifiedPlanForChromiumBasedBrowsers = true;
+          this.log('attempt to enable unified plan');
+        }
       }
     });
 
@@ -645,21 +674,28 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   async initializeMeetingSession(configuration: MeetingSessionConfiguration): Promise<void> {
     let logger: Logger;
+    const logLevel = LogLevel.INFO;
+    const consoleLogger = logger = new ConsoleLogger('SDK', logLevel);
     if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-      logger = new ConsoleLogger('SDK', LogLevel.INFO);
+      logger = consoleLogger;
     } else {
-      logger = new MeetingSessionPOSTLogger(
-        'SDK',
-        configuration,
-        DemoMeetingApp.LOGGER_BATCH_SIZE,
-        DemoMeetingApp.LOGGER_INTERVAL_MS,
-        `${DemoMeetingApp.BASE_URL}logs`,
-        LogLevel.INFO
+      logger = new MultiLogger(
+        consoleLogger,
+        new MeetingSessionPOSTLogger(
+          'SDK',
+          configuration,
+          DemoMeetingApp.LOGGER_BATCH_SIZE,
+          DemoMeetingApp.LOGGER_INTERVAL_MS,
+          `${DemoMeetingApp.BASE_URL}logs`,
+          logLevel
+        ),
       );
     }
     const deviceController = new DefaultDeviceController(logger);
     configuration.enableWebAudio = this.enableWebAudio;
     configuration.enableUnifiedPlanForChromiumBasedBrowsers = this.enableUnifiedPlanForChromiumBasedBrowsers;
+    configuration.attendeePresenceTimeoutMs = 5000;
+    configuration.enableSimulcastForUnifiedPlanChromiumBasedBrowsers = this.enableSimulcast;
     this.meetingSession = new DefaultMeetingSession(configuration, logger, deviceController);
     this.audioVideo = this.meetingSession.audioVideo;
 
@@ -918,8 +954,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     // a custom UX with a specific device id.
     this.audioVideo.setDeviceLabelTrigger(
       async (): Promise<MediaStream> => {
-        if (this.isRecorder()) {
-          throw new Error('recorder does not need device labels');
+        if (this.isRecorder() || this.isBroadcaster()) {
+          throw new Error('Recorder or Broadcaster does not need device labels');
         }
         this.switchToFlow('flow-need-permission');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -1174,7 +1210,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
   }
 
   private audioInputSelectionToDevice(value: string): Device {
-    if (this.isRecorder()) {
+    if (this.isRecorder() || this.isBroadcaster()) {
       return null;
     }
     if (value === '440 Hz') {
@@ -1186,7 +1222,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
   }
 
   private videoInputSelectionToDevice(value: string): Device {
-    if (this.isRecorder()) {
+    if (this.isRecorder() || this.isBroadcaster()) {
       return null;
     }
     if (value === 'Blue') {
@@ -1240,7 +1276,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
         break;
       case ContentShareType.VideoFile:
         const videoFile = document.getElementById('content-share-video') as HTMLVideoElement;
-        videoFile.style.display = 'block';
         if (videoUrl) {
           videoFile.src = videoUrl;
         }
@@ -1267,6 +1302,10 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   isRecorder(): boolean {
     return (new URL(window.location.href).searchParams.get('record')) === 'true';
+  }
+
+  isBroadcaster(): boolean {
+    return (new URL(window.location.href).searchParams.get('broadcast')) === 'true';
   }
 
   async authenticate(): Promise<string> {
@@ -1390,11 +1429,10 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       return false;
     }
     const tile = this.audioVideo.getVideoTile(tileId);
-    const state = tile.state();
-    if (state.isContent) {
-      return true;
+    if (!tile) {
+      return false;
     }
-    return false;
+    return tile.state().isContent;
   }
 
   activeTileId(): number | null {
@@ -1445,6 +1483,21 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       }
     }
     return tiles;
+  }
+
+  setUpVideoTileElementResizer(): void {
+    for (let i = 0; i <= DemoTileOrganizer.MAX_TILES; i++) {
+      const videoElem = document.getElementById(`video-${i}`) as HTMLVideoElement;
+      videoElem.onresize = () => {
+        if (videoElem.videoHeight > videoElem.videoWidth) {
+          // portrait mode
+          videoElem.style.objectFit = 'contain';
+          this.log(`video-${i} changed to portrait mode resolution ${videoElem.videoWidth}x${videoElem.videoHeight}`);
+        } else {
+          videoElem.style.objectFit = 'cover';
+        }
+      };
+    }
   }
 
   layoutVideoTilesActiveSpeaker(visibleTileIndices: number[], activeTileId: number): void {

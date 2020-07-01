@@ -24,11 +24,11 @@ export default class DOMMockBehavior {
   setRemoteDescriptionStreamId: string = 'bc20510c2a134aa798f4dc9982f7c4a3adk';
   setRemoteDescriptionNumberOfTracks: number = 1;
   setRemoteDescriptionAddTrackSucceeds: boolean = true;
+  applyConstraintSucceeds: boolean = true;
   mediaStreamTrackCapabilities: { width: number; height: number } = {
     width: 0,
     height: 0,
   };
-
   mediaStreamTrackSettings: {
     width: number;
     height: number;
@@ -40,19 +40,20 @@ export default class DOMMockBehavior {
     deviceId: 'test',
     facingMode: 'user',
   };
-
   deviceCounter: number = 0;
   enumerateDevicesSucceeds: boolean = true;
   enumerateDevicesSupported: boolean = true;
   enumerateAudioOutputDeviceSupported: boolean = true;
+  enumerateDeviceList: MediaDeviceInfo[] = undefined;
+  mediaDevicesSupported: boolean = true;
   mediaDeviceInfoSupported: boolean = true;
+  mediaDeviceHasSupportedConstraints: boolean = true;
+  mediaDeviceOnDeviceChangeSupported: boolean = true;
   rtcPeerConnectionGetStatsSucceeds: boolean = true;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rtcPeerConnectionGetStatsReport: { [name: string]: any } = {};
   rtcPeerConnectionCreateOfferIncludesLocalHost: boolean = false;
-
   rtcPeerConnectionCreateOfferWithSendingSsrcChange: boolean = false;
-
   rtcPeerConnectionUseCustomOffer: boolean = false;
   rtcPeerConnectionCustomOffer: string = 'sdp-offer';
   browserName: string = 'firefox';
@@ -60,4 +61,5 @@ export default class DOMMockBehavior {
   responseSuccess: boolean = true;
   responseStatusCode: number = 200;
   hasInactiveTransceiver: boolean = false;
+  createElementCaptureStream: MediaStream = undefined;
 }

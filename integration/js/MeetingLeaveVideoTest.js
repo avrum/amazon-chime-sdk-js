@@ -1,10 +1,10 @@
 const {OpenAppStep, JoinMeetingStep, AuthenticateUserStep, ClickVideoButton, LeaveMeetingStep} = require('./steps');
-const {UserJoinedMeetingCheck, LocalVideoCheck, RemoteVideoCheck, UserAuthenticationCheck, RosterCheck} = require('./checks');
+const {UserJoinedMeetingCheck, RemoteVideoCheck, UserAuthenticationCheck, RosterCheck} = require('./checks');
 const {AppPage} = require('./pages/AppPage');
 const {TestUtils} = require('./node_modules/kite-common');
 const SdkBaseTest = require('./utils/SdkBaseTest');
 const {Window} = require('./utils/Window');
-const uuidv4 = require('uuid/v4');
+const { v4: uuidv4 } = require('uuid');
 
 class MeetingLeaveVideoTest extends SdkBaseTest {
   constructor(name, kiteConfig) {
@@ -12,10 +12,9 @@ class MeetingLeaveVideoTest extends SdkBaseTest {
   }
 
   async runIntegrationTest() {
-    this.url = this.baseUrl + '?m=' + uuidv4();
     this.numberOfParticipant = 2;
 
-    if (this.numberOfSessions(this.capabilities.browserName) > 1) {
+    if (this.numberOfSessions() > 1) {
       await this.runTestOnMultipleSessions()
     } else {
       await this.runTestOnSingleSessions()

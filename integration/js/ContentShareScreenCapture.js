@@ -5,7 +5,7 @@ const {TestUtils} = require('./node_modules/kite-common');
 const {SdkTestUtils} = require('./utils/SdkTestUtils');
 const SdkBaseTest = require('./utils/SdkBaseTest');
 const {Window} = require('./utils/Window');
-const uuidv4 = require('uuid/v4');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Test screen capture sharing check
@@ -36,25 +36,25 @@ class ContentShareScreenCapture extends SdkBaseTest {
     await test_window_1.runCommands(async () => await ClickContentShareButton.executeStep(this, session, "ON"));
     await TestUtils.waitAround(5000);
     await test_window_1.runCommands(async () => await RosterCheck.executeStep(this, session, 3));
-    await test_window_2.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "ON", 2));
+    await test_window_2.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "ON", 1));
     await test_window_2.runCommands(async () => await RosterCheck.executeStep(this, session, 3));
 
     //Pause
     await test_window_1.runCommands(async () => await ClickContentSharePauseButton.executeStep(this, session, "ON"));
     await TestUtils.waitAround(1000);
-    await test_window_2.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "PAUSE", 2));
+    await test_window_2.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "PAUSE", 1));
 
     //Unpause
     await test_window_1.runCommands(async () => await ClickContentSharePauseButton.executeStep(this, session, "OFF"));
     await TestUtils.waitAround(1000);
-    await test_window_2.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "ON", 2));
+    await test_window_2.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "ON", 1));
 
     //Switch Content Share between attendees and verify that only one can share
     await test_window_2.runCommands(async () => await ClickContentShareButton.executeStep(this, session, "ON"));
     await TestUtils.waitAround(5000);
-    await test_window_2.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "OFF", 2));
+    await test_window_2.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "OFF", 1));
     await test_window_2.runCommands(async () => await RosterCheck.executeStep(this, session, 3));
-    await test_window_1.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "ON", 2));
+    await test_window_1.runCommands(async () => await ContentShareVideoCheck.executeStep(this, session, "ON", 1));
     await test_window_1.runCommands(async () => await RosterCheck.executeStep(this, session, 3));
 
     //Turn off Content Share

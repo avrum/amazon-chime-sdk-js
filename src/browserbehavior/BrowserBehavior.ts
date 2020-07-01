@@ -48,6 +48,11 @@ export default interface BrowserBehavior {
   requiresUnifiedPlanMunging(): boolean;
 
   /**
+   * Returns whether the browser requires munging to activate simulcast
+   */
+  requiresSimulcastMunging(): boolean;
+
+  /**
    * Returns the bundle policy for the browser
    */
   requiresBundlePolicy(): RTCBundlePolicy;
@@ -61,6 +66,11 @@ export default interface BrowserBehavior {
    * Returns whether it is needed to check connection attributes in SDP
    */
   requiresCheckForSdpConnectionAttributes(): boolean;
+
+  /**
+   * Returns whether it is needed to sort video section codec preference
+   */
+  requiresSortCodecPreferencesForSdpAnswer(): boolean;
 
   /**
    * Returns whether screen share is unsupported by the browser

@@ -16,6 +16,7 @@ import Backoff from './backoff/Backoff';
 import BackoffFactory from './backoff/BackoffFactory';
 import BaseConnectionHealthPolicy from './connectionhealthpolicy/BaseConnectionHealthPolicy';
 import BaseTask from './task/BaseTask';
+import BitrateParameters from './videouplinkbandwidthpolicy/BitrateParameters';
 import BrowserBehavior from './browserbehavior/BrowserBehavior';
 import CleanRestartedSessionTask from './task/CleanRestartedSessionTask';
 import CleanStoppedSessionTask from './task/CleanStoppedSessionTask';
@@ -54,6 +55,7 @@ import DefaultDragObserver from './dragobserver/DefaultDragObserver';
 import DefaultJPEGDecoderComponentFactory from './jpegdecoder/DefaultJPEGDecoderComponentFactory';
 import DefaultJPEGDecoderController from './jpegdecoder/controller/DefaultJPEGDecoderController';
 import DefaultJPEGDecoderInstance from './jpegdecoder/instance/DefaultJPEGDecoderInstance';
+import DefaultMediaDeviceFactory from './mediadevicefactory/DefaultMediaDeviceFactory';
 import DefaultMeetingSession from './meetingsession/DefaultMeetingSession';
 import DefaultModality from './modality/DefaultModality';
 import DefaultPingPong from './pingpong/DefaultPingPong';
@@ -126,6 +128,8 @@ import LogLevel from './logger/LogLevel';
 import Logger from './logger/Logger';
 import Maybe from './maybe/Maybe';
 import MaybeProvider from './maybe/MaybeProvider';
+import MediaDeviceFactory from './mediadevicefactory/MediaDeviceFactory';
+import MediaDeviceProxyHandler from './mediadevicefactory/MediaDeviceProxyHandler';
 import MediaRecording from './mediarecording/MediaRecording';
 import MediaRecordingEvent from './mediarecording/MediaRecordingEvent';
 import MediaRecordingFactory from './mediarecording/MediaRecordingFactory';
@@ -144,6 +148,7 @@ import MeetingSessionURLs from './meetingsession/MeetingSessionURLs';
 import MeetingSessionVideoAvailability from './meetingsession/MeetingSessionVideoAvailability';
 import Modality from './modality/Modality';
 import MonitorTask from './task/MonitorTask';
+import MultiLogger from './logger/MultiLogger';
 import NScaleVideoUplinkBandwidthPolicy from './videouplinkbandwidthpolicy/NScaleVideoUplinkBandwidthPolicy';
 import NoOpAudioVideoController from './audiovideocontroller/NoOpAudioVideoController';
 import NoOpDebugLogger from './logger/NoOpDebugLogger';
@@ -173,6 +178,7 @@ import PromisedWebSocketClosureCode from './promisedwebsocket/PromisedWebSocketC
 import PromisedWebSocketFactory from './promisedwebsocket/PromisedWebSocketFactory';
 import ProtocolScreenMessageDetail from './screenmessagedetail/ProtocolScreenMessageDetail';
 import ProtocolScreenMessageDetailSerialization from './screenmessagedetailserialization/ProtocolScreenMessageDetailSerialization';
+import RealtimeAttendeePositionInFrame from './realtimecontroller/RealtimeAttendeePositionInFrame';
 import RealtimeController from './realtimecontroller/RealtimeController';
 import RealtimeControllerFacade from './realtimecontroller/RealtimeControllerFacade';
 import RealtimeState from './realtimecontroller/RealtimeState';
@@ -255,6 +261,9 @@ import SignalingClientJoin from './signalingclient/SignalingClientJoin';
 import SignalingClientObserver from './signalingclientobserver/SignalingClientObserver';
 import SignalingClientSubscribe from './signalingclient/SignalingClientSubscribe';
 import SignalingSession from './screenviewing/signalingsession/SignalingSession';
+import SimulcastTransceiverController from './transceivercontroller/SimulcastTransceiverController';
+import SimulcastUplinkPolicy from './videouplinkbandwidthpolicy/SimulcastUplinkPolicy';
+import SimulcastVideoStreamIndex from './videostreamindex/SimulcastVideoStreamIndex';
 import Some from './maybe/Some';
 import StatsCollector from './statscollector/StatsCollector';
 import StreamMetricReport from './clientmetricreport/StreamMetricReport';
@@ -267,10 +276,12 @@ import TimeoutTask from './task/TimeoutTask';
 import TransceiverController from './transceivercontroller/TransceiverController';
 import UnusableAudioWarningConnectionHealthPolicy from './connectionhealthpolicy/UnusableAudioWarningConnectionHealthPolicy';
 import Versioning from './versioning/Versioning';
+import VideoAdaptiveProbePolicy from './videodownlinkbandwidthpolicy/VideoAdaptiveProbePolicy';
 import VideoCaptureAndEncodeParameter from './videocaptureandencodeparameter/VideoCaptureAndEncodeParameter';
 import VideoDownlinkBandwidthPolicy from './videodownlinkbandwidthpolicy/VideoDownlinkBandwidthPolicy';
 import VideoElementFactory from './videoelementfactory/VideoElementFactory';
 import VideoLogEvent from './statscollector/VideoLogEvent';
+import VideoStreamDescription from './videostreamindex/VideoStreamDescription';
 import VideoStreamIdSet from './videostreamidset/VideoStreamIdSet';
 import VideoStreamIndex from './videostreamindex/VideoStreamIndex';
 import VideoTile from './videotile/VideoTile';
@@ -280,6 +291,7 @@ import VideoTileFactory from './videotilefactory/VideoTileFactory';
 import VideoTileState from './videotile/VideoTileState';
 import VideoUplinkBandwidthPolicy from './videouplinkbandwidthpolicy/VideoUplinkBandwidthPolicy';
 import VolumeIndicatorAdapter from './volumeindicatoradapter/VolumeIndicatorAdapter';
+import WaitForAttendeePresenceTask from './task/WaitForAttendeePresenceTask';
 import WebMMediaRecording from './mediarecording/WebMMediaRecording';
 import WebMMediaRecordingFactory from './mediarecording/WebMMediaRecordingFactory';
 import WebSocketAdapter from './websocketadapter/WebSocketAdapter';
@@ -304,6 +316,7 @@ export {
   BackoffFactory,
   BaseConnectionHealthPolicy,
   BaseTask,
+  BitrateParameters,
   BrowserBehavior,
   CleanRestartedSessionTask,
   CleanStoppedSessionTask,
@@ -342,6 +355,7 @@ export {
   DefaultJPEGDecoderComponentFactory,
   DefaultJPEGDecoderController,
   DefaultJPEGDecoderInstance,
+  DefaultMediaDeviceFactory,
   DefaultMeetingSession,
   DefaultModality,
   DefaultPingPong,
@@ -414,6 +428,8 @@ export {
   Logger,
   Maybe,
   MaybeProvider,
+  MediaDeviceFactory,
+  MediaDeviceProxyHandler,
   MediaRecording,
   MediaRecordingEvent,
   MediaRecordingFactory,
@@ -432,6 +448,7 @@ export {
   MeetingSessionVideoAvailability,
   Modality,
   MonitorTask,
+  MultiLogger,
   NScaleVideoUplinkBandwidthPolicy,
   NoOpAudioVideoController,
   NoOpDebugLogger,
@@ -461,6 +478,7 @@ export {
   PromisedWebSocketFactory,
   ProtocolScreenMessageDetail,
   ProtocolScreenMessageDetailSerialization,
+  RealtimeAttendeePositionInFrame,
   RealtimeController,
   RealtimeControllerFacade,
   RealtimeState,
@@ -543,6 +561,9 @@ export {
   SignalingClientObserver,
   SignalingClientSubscribe,
   SignalingSession,
+  SimulcastTransceiverController,
+  SimulcastUplinkPolicy,
+  SimulcastVideoStreamIndex,
   Some,
   StatsCollector,
   StreamMetricReport,
@@ -555,10 +576,12 @@ export {
   TransceiverController,
   UnusableAudioWarningConnectionHealthPolicy,
   Versioning,
+  VideoAdaptiveProbePolicy,
   VideoCaptureAndEncodeParameter,
   VideoDownlinkBandwidthPolicy,
   VideoElementFactory,
   VideoLogEvent,
+  VideoStreamDescription,
   VideoStreamIdSet,
   VideoStreamIndex,
   VideoTile,
@@ -568,6 +591,7 @@ export {
   VideoTileState,
   VideoUplinkBandwidthPolicy,
   VolumeIndicatorAdapter,
+  WaitForAttendeePresenceTask,
   WebMMediaRecording,
   WebMMediaRecordingFactory,
   WebSocketAdapter,

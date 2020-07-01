@@ -33,7 +33,7 @@ import {
 } from '../../../../src/index';
 
 class DemoTileOrganizer {
-  private static MAX_TILES = 16;
+  public static MAX_TILES = 16;
   private tiles: { [id: number]: number } = {};
   public tileStates: {[id: number]: boolean } = {};
 
@@ -134,7 +134,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
 
   // feature flags
   enableWebAudio = false;
-  enableUnifiedPlanForChromiumBasedBrowsers = true;
+  enableUnifiedPlanForChromiumBasedBrowsers = false;
+  enableSimulcast = false;
 
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,6 +146,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
     this.initEventListeners();
     this.initParameters();
     this.setMediaRegion();
+    this.setUpVideoTileElementResizer();
   }
 
   initParameters(): void {
@@ -289,6 +291,27 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
         await this.openVideoInputFromSelection(videoInput.value, true);
       } catch (err) {
         this.log('no video input device selected');
+      }
+    });
+
+    const optionalFeatures = document.getElementById('optional-features') as HTMLSelectElement;
+    optionalFeatures.addEventListener('change', async (_ev: Event) => {
+      const collections = optionalFeatures.selectedOptions;
+      this.enableSimulcast = false;
+      this.enableWebAudio = false;
+      this.enableUnifiedPlanForChromiumBasedBrowsers = false;
+      for (let i = 0; i < collections.length; i++) {
+        // hard code magic
+        if (collections[i].label === 'simulcast') {
+          this.enableSimulcast = true;
+          this.enableUnifiedPlanForChromiumBasedBrowsers = true;
+        }
+        if (collections[i].label === 'webaudio') {
+          this.enableWebAudio = true;
+        }
+        if (collections[i].label === 'unifiedplan') {
+          this.enableUnifiedPlanForChromiumBasedBrowsers = true;
+        }
       }
     });
 
@@ -475,6 +498,21 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
     });
   }
 
+  setUpVideoTileElementResizer(): void {
+    for (let i = 0; i <= DemoTileOrganizer.MAX_TILES; i++) {
+      const videoElem = document.getElementById(`video-${i}`) as HTMLVideoElement;
+      videoElem.onresize = () => {
+        if (videoElem.videoHeight > videoElem.videoWidth) {
+          // portrait mode
+          this.log(`video-${i} changed to portrait mode resolution ${videoElem.videoWidth}x${videoElem.videoHeight}`);
+          videoElem.style.objectFit = 'contain';
+        } else {
+          videoElem.style.objectFit = 'cover';
+        }
+      };
+    }
+  }
+
   getSupportedMediaRegions(): Array<string> {
     const supportedMediaRegions: Array<string> = [];
     const mediaRegion = (document.getElementById("inputRegion")) as HTMLSelectElement;
@@ -631,6 +669,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
     const deviceController = new DefaultDeviceController(logger);
     configuration.enableWebAudio = this.enableWebAudio;
     configuration.enableUnifiedPlanForChromiumBasedBrowsers = this.enableUnifiedPlanForChromiumBasedBrowsers;
+    configuration.enableSimulcastForUnifiedPlanChromiumBasedBrowsers = this.enableSimulcast;
     this.meetingSession = new DefaultMeetingSession(configuration, logger, deviceController);
     this.audioVideo = this.meetingSession.audioVideo;
 
