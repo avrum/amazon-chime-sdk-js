@@ -130,12 +130,17 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
     'button-screen-share': false,
     'button-screen-view': false,
     'button-pause-screen-share': false,
+    'button-download': true,
   };
 
   // feature flags
   enableWebAudio = false;
   enableUnifiedPlanForChromiumBasedBrowsers = false;
   enableSimulcast = false;
+
+  private recordedBlobs: Blob[];
+  private streamsDictionary:  Map<string, object>= new Map<string, object>();
+  private mediaRecorder: MediaRecorder;
 
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -483,6 +488,13 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
         (buttonMeetingEnd as HTMLButtonElement).disabled = false;
         // @ts-ignore
         window.location = window.location.pathname;
+      });
+    });
+
+    const buttonDownload = document.getElementById('button-download');
+    buttonDownload.addEventListener('click', _e => {
+      new AsyncScheduler().start(async () => {
+        this.startDownloadAllStreams();
       });
     });
 
@@ -1221,6 +1233,15 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
     }
     tileElement.style.display = 'block';
     this.layoutVideoTiles();
+
+    if (tileState.active) {
+      this.log("******* STREAM IS ACTIVE *******");
+      this.log(`******* STREAM IS ACTIVE *******   tileState.tileId:` + tileState.tileId);
+      this.log(`******* boundVideoStream: ${JSON.stringify(tileState.boundVideoStream, null, '  ')}`);
+      this.log(`******* boundVideoStream.active: ${JSON.stringify(tileState.boundVideoStream.active, null, '  ')}`);
+      const userName: String = tileState.boundExternalUserId.split('#')[1];
+      this.startRecording(userName, tileState.boundVideoStream)
+    }
   }
 
   videoTileWasRemoved(tileId: number): void {
@@ -1482,6 +1503,144 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
 
   connectionDidBecomeGood(): void {
     this.log('connection is good now');
+  }
+
+
+  // @ts-ignore
+  handleDataAvailable(event) {
+    if (event.data && event.data.size > 0) {
+      console.log('new handleDataAvailable event.data.size: ', event.data.size);
+      console.log('event.target.stream.id: ', event.target.stream.id);
+      console.log('event.currentTarget.stream.id: ', event.currentTarget.stream.id);
+
+      // @ts-ignore
+      var userStreamRecordSetting = this.streamsDictionary.get(event.target.stream.id);
+
+      //{userId, mediaRecorder, recordedBlobs}
+      // @ts-ignore
+      userStreamRecordSetting.recordedBlobs.push(event.data);
+
+      var blobUrl = URL.createObjectURL(event.data);
+      console.log('blobUrl: ', blobUrl);
+      var link = document.createElement("a"); // Or maybe get it from the current document
+      link.href = blobUrl;
+      link.download = "aDefaultFileName.txt";
+      link.innerHTML = "Click here to download the file";
+      document.body.appendChild(link); // Or append it whereever you want
+
+      this.recordedBlobs.push(event.data);
+    }
+  }
+
+  handleStop(event: Event) {
+    console.log('Recorder stopped: ', event);
+    /*
+    const videoBuffer = new Blob(this.recordedBlobs, {type: 'video/webm'});
+    this.downloadUrl = window.URL.createObjectURL(videoBuffer); // you can download with <a> tag
+    this.recordVideoElement.src = this.downloadUrl;
+    */
+  }
+
+  // @ts-ignore
+  startRecording(userId: String, stream: MediaStream) {
+
+    /*
+    var types = ["video/webm",
+      "audio/webm",
+      "video/webm\;codecs=vp8",
+      "video/webm\;codecs=daala",
+      "video/webm\;codecs=h264",
+      "audio/webm\;codecs=opus",
+      "video/mp4",
+      "video/mpeg"];
+
+    for (var i in types) {
+      console.log( "Is " + types[i] + " supported? " + (MediaRecorder.isTypeSupported(types[i]) ? "Maybe!" : "Nope :("));
+    }
+    */
+
+    console.log('Checking if stream dictionary have stream.id : ' + stream.id);
+    if (this.streamsDictionary.has(stream.id)) {
+      console.log('a stream recorder for: ' + stream.id + ' already exist. ignoring this active stream.');
+      return;
+    }
+
+    var mediaRecorder: MediaRecorder;
+    try {
+      mediaRecorder = new MediaRecorder(stream, {mimeType: 'video/webm; codecs=vp8'});
+    } catch (e0) {
+      console.log('Try different mimeType', e0);
+    }
+    console.log('Created MediaRecorder', this.mediaRecorder);
+    mediaRecorder.onstop = this.handleStop;
+    // @ts-ignore
+    const _thisMeeting = this;
+    mediaRecorder.ondataavailable = function(event) {
+      if (event.data && event.data.size > 0) {
+        // @ts-ignore
+        console.log('new handleDataAvailable event.data.size: ', event.data.size , '  stream.id: ', event.target.stream.id);
+
+        // @ts-ignore
+        const userStreamRecordSetting = _thisMeeting.streamsDictionary.get(event.target.stream.id);
+        // @ts-ignore
+        userStreamRecordSetting.recordedBlobs.push(event.data);
+        /*
+        // Download each part as a single file
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(event.data);
+        link.download = userStreamRecordSetting.recordedBlobs.length + '.webm';
+        link.click() // Save
+        */
+
+      }
+    };
+
+    // @ts-ignore
+    const recordedBlobs = [];
+    // @ts-ignore
+    this.streamsDictionary.set(stream.id , {userId, mediaRecorder, recordedBlobs});
+
+    mediaRecorder.start(100); // collect 1000ms of data
+    console.log('MediaRecorder started for stream id: ', stream.id);
+  }
+
+  stopRecording() {
+    this.mediaRecorder.stop();
+    console.log('Recorded Blobs: ', this.recordedBlobs);
+    //this.recordVideoElement.controls = true;
+  }
+
+
+  private startDownloadAllStreams() {
+    console.log('Starting to download all streams');
+
+    var types = ["video/webm",
+      "audio/webm",
+      "video/webm\;codecs=vp8",
+      "video/webm\;codecs=daala",
+      "video/webm\;codecs=h264",
+      "audio/webm\;codecs=opus",
+      "video/mp4",
+      "video/mpeg"];
+
+    for (var i in types) {
+      console.log( "Is " + types[i] + " supported? " + (MediaRecorder.isTypeSupported(types[i]) ? "Maybe!" : "Nope :("));
+    }
+
+    this.streamsDictionary.forEach((value: object, key: string) => {
+      console.log(key, value);
+      console.log('Starting download steam id:' + key);
+      // @ts-ignore
+      const {userId, mediaRecorder, recordedBlobs} = value;
+      console.log('Starting user id:' + userId);
+      let blob = new Blob(recordedBlobs);
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = userId + '.webm';
+      link.click() // Save
+
+    });
   }
 }
 
